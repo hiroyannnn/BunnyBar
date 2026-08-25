@@ -4,9 +4,10 @@
 //
 
 import AppKit
+import ServiceManagement
 import SpriteKit
 
-final class AppDelegate: NSObject, NSApplicationDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private final class Overlay {
         let window: NSWindow
         let view: SKView
@@ -100,6 +101,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let stateMenuItem = NSMenuItem(title: "Rabbit state · Sleeping", action: nil, keyEquivalent: "")
     private let speedMenuItem = NSMenuItem(title: "Rabbit speed 0.75×", action: nil, keyEquivalent: "")
     private let memoryMenuItem = NSMenuItem(title: "Memory —", action: nil, keyEquivalent: "")
+    private let launchAtLoginMenuItem = NSMenuItem(title: "Launch at Login", action: #selector(toggleLaunchAtLogin), keyEquivalent: "")
     private var visibilityMenuItem: NSMenuItem!
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -123,11 +125,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         stateMenuItem.isEnabled = false
         speedMenuItem.isEnabled = false
         memoryMenuItem.isEnabled = false
+        launchAtLoginMenuItem.target = self
         menu.addItem(cpuMenuItem)
         menu.addItem(stateMenuItem)
         menu.addItem(speedMenuItem)
         menu.addItem(memoryMenuItem)
         menu.addItem(.separator())
+        menu.addItem(launchAtLoginMenuItem)
 
         visibilityMenuItem = NSMenuItem(title: "Hide Bunny", action: #selector(toggleBunny), keyEquivalent: "b")
         visibilityMenuItem.target = self
@@ -135,7 +139,66 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let quitItem = NSMenuItem(title: "Quit BunnyBar", action: #selector(quitApp), keyEquivalent: "q")
         quitItem.target = self
         menu.addItem(quitItem)
+        menu.delegate = self
         statusItem.menu = menu
+        refreshLaunchAtLoginMenuItem()
+    }
+
+    func menuWillOpen(_ menu: NSMenu) {
+        guard menu === statusItem.menu else { return }
+        refreshLaunchAtLoginMenuItem()
+    }
+
+    private func refreshLaunchAtLoginMenuItem() {
+        switch SMAppService.mainApp.status {
+        case .enabled:
+            launchAtLoginMenuItem.title = "Launch at Login"
+            launchAtLoginMenuItem.state = .on
+            launchAtLoginMenuItem.isEnabled = true
+        case .requiresApproval:
+            launchAtLoginMenuItem.title = "Launch at Login (Open System Settings…)"
+            launchAtLoginMenuItem.state = .off
+            launchAtLoginMenuItem.isEnabled = true
+        case .notRegistered:
+            launchAtLoginMenuItem.title = "Launch at Login"
+            launchAtLoginMenuItem.state = .off
+            launchAtLoginMenuItem.isEnabled = true
+        case .notFound:
+            launchAtLoginMenuItem.title = "Launch at Login (Unavailable)"
+            launchAtLoginMenuItem.state = .off
+            launchAtLoginMenuItem.isEnabled = false
+        @unknown default:
+            launchAtLoginMenuItem.title = "Launch at Login (Unavailable)"
+            launchAtLoginMenuItem.state = .off
+            launchAtLoginMenuItem.isEnabled = false
+        }
+    }
+
+    @objc private func toggleLaunchAtLogin(_: NSMenuItem) {
+        let service = SMAppService.mainApp
+        if service.status == .requiresApproval {
+            SMAppService.openSystemSettingsLoginItems()
+            return
+        }
+
+        if service.status == .enabled {
+            do {
+                try service.unregister()
+            } catch {
+                NSLog("BunnyBar: failed to disable Launch at Login: \(error.localizedDescription)")
+            }
+        } else {
+            do {
+                try service.register()
+                if SMAppService.mainApp.status == .requiresApproval {
+                    SMAppService.openSystemSettingsLoginItems()
+                }
+            } catch {
+                NSLog("BunnyBar: failed to enable Launch at Login: \(error.localizedDescription)")
+                SMAppService.openSystemSettingsLoginItems()
+            }
+        }
+        refreshLaunchAtLoginMenuItem()
     }
 
     private func rebuildOverlays() {

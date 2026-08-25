@@ -13,6 +13,7 @@ work picks up.
 - Transparent, click-through overlay that does not steal focus
 - One overlay per display; overlays are rebuilt when displays change and follow all Spaces/fullscreen
 - Show/Hide and Quit controls from the 🐰 status item
+- Optional **Launch at Login** setting from the status-item menu (managed by macOS Login Items)
 - No external frameworks or runtime services
 
 ## Build and run
@@ -37,7 +38,9 @@ app is an accessory/menu-bar app, so it does not open a normal Dock window.
 Click the 🐰 status item to see live CPU and memory values. **Hide Bunny**
 pauses and removes all overlays; **Show Bunny** restores them. **Quit BunnyBar**
 terminates the app. The overlay is intentionally click-through, so regular
-menu-bar and application interactions remain unaffected.
+menu-bar and application interactions remain unaffected. To start BunnyBar
+automatically, enable **Launch at Login** in the menu; if macOS requires
+approval, the item opens **System Settings → General → Login Items**.
 
 ## Release
 
