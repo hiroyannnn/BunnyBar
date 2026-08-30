@@ -33,7 +33,7 @@ struct RabbitPerformance: Equatable {
         let normalized = clamp(cpuPercent) / 100
         // Keep the gait in a natural range. Load changes the tempo, but does
         // not turn the rabbit into a perpetually fast animation.
-        return CGFloat(0.75 + normalized * 0.90)
+        return CGFloat(0.90 + normalized * 0.25)
     }
 
     static func status(for cpuPercent: Double) -> String {
@@ -47,6 +47,34 @@ struct RabbitPerformance: Equatable {
 
     private static func clamp(_ value: Double) -> Double {
         min(max(value.isFinite ? value : 0, 0), 100)
+    }
+}
+
+/// Small deterministic generator for behavior decisions. Keeping this
+/// separate from system metrics makes seeded behavior checks reproducible
+/// without using wall-clock randomness in the scene.
+struct RabbitBehaviorRandom {
+    private var state: UInt64
+
+    init(seed: UInt64) {
+        state = seed == 0 ? 0x9E37_79B9_7F4A_7C15 : seed
+    }
+
+    mutating func unit() -> Double {
+        state = state &* 6_364_136_223_846_793_005 &+ 1
+        return Double(state >> 11) / Double(1 << 53)
+    }
+
+    mutating func duration(_ range: ClosedRange<TimeInterval>) -> TimeInterval {
+        range.lowerBound + (range.upperBound - range.lowerBound) * unit()
+    }
+
+    mutating func cgFloat(in range: ClosedRange<CGFloat>) -> CGFloat {
+        range.lowerBound + (range.upperBound - range.lowerBound) * CGFloat(unit())
+    }
+
+    mutating func int(in range: ClosedRange<Int>) -> Int {
+        range.lowerBound + Int(unit() * Double(range.upperBound - range.lowerBound + 1))
     }
 }
 

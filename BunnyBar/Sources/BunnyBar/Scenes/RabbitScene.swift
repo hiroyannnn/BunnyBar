@@ -2,86 +2,120 @@
 //  RabbitScene.swift
 //  BunnyBar
 //
-//  Created by hiro on 2026/01/12.
-//
 
+import Foundation
 import SpriteKit
 
 enum RabbitState {
-    case sleeping    // 寝ている（デフォルト、最も長い）
-    case resting     // ゴロゴロ（起きてるけど動かない）
-    case grooming    // 毛づくろい
-    case idle        // 起きて周囲を見る
-    case running     // 走る（レア）
-    case binky       // 喜びジャンプ（超レア）
+    case sleeping
+    case resting
+    case grooming
+    case idle
+    case running
+    case binky
 }
 
-class RabbitScene: SKScene {
+final class RabbitScene: SKScene {
     private var rabbit: RabbitNode!
+    private var cameraNode: SKCameraNode!
+    var worldWidth: CGFloat = 0
+    var onRabbitPositionChange: ((CGFloat) -> Void)?
     private(set) var currentState: RabbitState = .sleeping
-    private var stateTimer: Timer?
     private(set) var performance = RabbitPerformance(cpuPercent: 0)
 
-    // A real rabbit spends most of its time still.  Keep load-triggered
-    // activity as a sustained signal with a generous refractory period so a
-    // busy CPU cannot turn into an endless patrol loop.
-    private var sustainedHighLoadSamples = 0
-    private var lastRunDate: Date?
-    private var lastBinkyDate: Date?
-    private let runCooldown: TimeInterval = 75
-    private let binkyCooldown: TimeInterval = 900
+    private var random: RabbitBehaviorRandom = {
+        var system = SystemRandomNumberGenerator()
+        return RabbitBehaviorRandom(seed: UInt64.random(in: 1...UInt64.max, using: &system))
+    }()
+    var behaviorSeedForTesting: UInt64? {
+        didSet {
+            if rabbit == nil, let seed = behaviorSeedForTesting {
+                random = RabbitBehaviorRandom(seed: seed)
+            }
+        }
+    }
+    private var direction: CGFloat = 1
+    private var hopsRemaining = 0
+    private var hasStartedExploration = false
+    private var binkyAvailable = true
+    private let stateScheduleKey = "rabbit-state-schedule"
+    private let binkyCooldownKey = "rabbit-binky-cooldown"
+    private let movementKey = "rabbit-hop-movement"
+    private let bodyMargin: CGFloat = 19
+    private let minimumHop: CGFloat = 24
+    private let maximumHop: CGFloat = 58
 
-    // Position where rabbit stays (left side, avoiding center)
-    private var homePosition: CGPoint = .zero
+    static let binkyCooldown: TimeInterval = 900
+
+    static func cameraX(forRabbitX rabbitX: CGFloat, worldWidth: CGFloat, viewportWidth: CGFloat) -> CGFloat {
+        let halfWidth = max(1, viewportWidth) / 2
+        let minCameraX = halfWidth
+        let maxCameraX = max(minCameraX, worldWidth - halfWidth)
+        return min(maxCameraX, max(minCameraX, rabbitX))
+    }
+
+    static func viewportOriginX(screenMinX: CGFloat, screenWidth: CGFloat,
+                                rabbitX: CGFloat, viewportWidth: CGFloat) -> CGFloat {
+        let minX = screenMinX
+        let maxX = max(minX, screenMinX + screenWidth - viewportWidth)
+        let targetX = screenMinX + rabbitX - viewportWidth / 2
+        return min(maxX, max(minX, targetX))
+    }
+
+    static func boundedHopDistance(requested: CGFloat, available: CGFloat) -> CGFloat {
+        min(max(0, requested), max(0, available))
+    }
 
     override func didMove(to view: SKView) {
         backgroundColor = .clear
+        if worldWidth <= 0 { worldWidth = size.width }
 
-        // Position rabbit on the left side, lower on screen
-        // Keep the scaled silhouette inside the native 30px menu-bar strip;
-        // the overlay itself is 44px tall, so the rabbit's local baseline
-        // sits well above the lower edge instead of dipping into the app below.
-        homePosition = CGPoint(x: size.width * 0.40, y: size.height * 0.68)
+        cameraNode = SKCameraNode()
+        addChild(cameraNode)
+        camera = cameraNode
 
         rabbit = RabbitNode()
-        // The vector silhouette is authored around 38pt tall. This keeps the
-        // lop ears and feet readable at roughly 22px without crowding the bar.
         rabbit.setScale(0.58)
-        rabbit.speed = performance.animationSpeed
-        rabbit.position = homePosition
+        rabbit.speed = 1.0
+        rabbit.position = CGPoint(x: initialPositionX, y: size.height * 0.68)
         addChild(rabbit)
 
-        // Start with sleeping (most common state)
-        enterState(.sleeping)
+        // Show a short initial look before the first small exploration bout.
+        enterStillState(.idle)
+        scheduleTransition(after: random.duration(2.4...4.0)) { [weak self] in
+            self?.beginExploration()
+        }
+        syncViewport()
+    }
+
+    override func didFinishUpdate() {
+        super.didFinishUpdate()
+        syncViewport()
+    }
+
+    private var initialPositionX: CGFloat {
+        min(max(bodyMargin, worldWidth * 0.40), max(bodyMargin, worldWidth - bodyMargin))
+    }
+
+    private var minimumX: CGFloat { bodyMargin }
+    private var maximumX: CGFloat { max(minimumX, worldWidth - bodyMargin) }
+
+    private func syncViewport() {
+        guard let rabbit, let cameraNode else { return }
+        cameraNode.position = CGPoint(
+            x: Self.cameraX(forRabbitX: rabbit.position.x, worldWidth: worldWidth, viewportWidth: size.width),
+            y: size.height / 2
+        )
+        onRabbitPositionChange?(rabbit.position.x)
     }
 
     deinit {
-        stateTimer?.invalidate()
+        removeAllActions()
     }
 
-    /// Applies a sampled system load without coupling the sampler to the
-    /// scene's state machine. SKNode.speed affects all pose and movement
-    /// actions, so transitions stay smooth at every load level.
+    /// CPU load changes tempo only. It never wakes or interrupts a rest.
     func applyPerformance(_ performance: RabbitPerformance) {
         self.performance = performance
-        rabbit?.speed = performance.animationSpeed
-
-        // Require two consecutive high-load samples (~3 seconds with the
-        // current sampler), and use hysteresis so a threshold-edge reading
-        // cannot repeatedly wake the rabbit. Low-load sleeping is never
-        // force-started; only sustained high load can interrupt a sleep pose.
-        if performance.cpuPercent >= 70 {
-            sustainedHighLoadSamples += 1
-        } else if performance.cpuPercent < 55 {
-            sustainedHighLoadSamples = 0
-        }
-
-        guard sustainedHighLoadSamples >= 2,
-              currentState != .running,
-              currentState != .binky,
-              rabbit != nil,
-              canStartRun else { return }
-        enterState(.running)
     }
 
     var stateDescription: String {
@@ -95,179 +129,209 @@ class RabbitScene: SKScene {
         }
     }
 
-    func refreshAppearance() {
-        rabbit?.refreshAppearance()
-    }
+    func refreshAppearance() { rabbit?.refreshAppearance() }
 
     func stop() {
-        stateTimer?.invalidate()
-        stateTimer = nil
+        removeAllActions()
+        rabbit?.stopAllAnimations()
         rabbit?.removeAllActions()
+        onRabbitPositionChange = nil
         isPaused = true
     }
 
-    // MARK: - State Machine
+    // MARK: - State scheduling
 
-    private func enterState(_ state: RabbitState) {
-        stateTimer?.invalidate()
+    private func enterStillState(_ state: RabbitState) {
+        removeAction(forKey: stateScheduleKey)
         currentState = state
-
+        // Still poses use the scene clock. This also keeps an in-flight
+        // SpriteKit movement from being retimed by an external metric sample.
+        rabbit.speed = 1.0
         switch state {
-        case .sleeping:
-            rabbit.position = homePosition
-            rabbit.startSleepingAnimation()
-            // Rabbits rest in long blocks; activity is an interruption, not
-            // the default animation loop.
-            scheduleNextState(afterMin: 60, afterMax: 150)
-
-        case .resting:
-            rabbit.position = homePosition
-            rabbit.startRestingAnimation()
-            scheduleNextState(afterMin: 30, afterMax: 75)
-
-        case .grooming:
-            rabbit.position = homePosition
-            rabbit.startGroomingAnimation()
-            scheduleNextState(afterMin: 20, afterMax: 45)
-
-        case .idle:
-            rabbit.position = homePosition
-            rabbit.startIdleAnimation()
-            scheduleNextState(afterMin: 10, afterMax: 25)
-
-        case .running:
-            startRunning()
-
-        case .binky:
-            guard canStartBinky else {
-                enterState(.resting)
-                return
-            }
-            lastBinkyDate = Date()
-            rabbit.performBinky { [weak self] in
-                self?.enterState(.resting)
-            }
+        case .sleeping: rabbit.startSleepingAnimation()
+        case .resting: rabbit.startRestingAnimation()
+        case .grooming: rabbit.startGroomingAnimation()
+        case .idle: rabbit.startIdleAnimation()
+        case .running, .binky: break
         }
     }
 
-    private func scheduleNextState(afterMin: TimeInterval, afterMax: TimeInterval) {
-        let delay = TimeInterval.random(in: afterMin...afterMax)
-        let timer = Timer(timeInterval: delay, repeats: false) { [weak self] _ in
-            MainActor.assumeIsolated {
-                self?.transitionToNextState()
-            }
-        }
-        RunLoop.main.add(timer, forMode: .common)
-        stateTimer = timer
+    private func scheduleTransition(after delay: TimeInterval, _ transition: @escaping () -> Void) {
+        removeAction(forKey: stateScheduleKey)
+        run(SKAction.sequence([
+            SKAction.wait(forDuration: delay),
+            SKAction.run(transition)
+        ]), withKey: stateScheduleKey)
     }
 
-    private func transitionToNextState() {
-        let roll = Double.random(in: 0...100)
+    private func scheduleNextStillState() {
+        let delay: ClosedRange<TimeInterval>
+        switch currentState {
+        case .sleeping: delay = 45...100
+        case .resting: delay = 7...18
+        case .grooming: delay = 10...24
+        case .idle: delay = 2.5...7.0
+        case .running, .binky: return
+        }
+        scheduleTransition(after: random.duration(delay)) { [weak self] in
+            self?.chooseNextStillState()
+        }
+    }
 
+    private func chooseNextStillState() {
+        let roll = random.unit()
         switch currentState {
         case .sleeping:
-            // 35% -> resting, 35% -> grooming, 20% -> idle, 9.5% -> running, 0.5% -> binky
-            if roll < 35 {
-                enterState(.resting)
-            } else if roll < 70 {
-                enterState(.grooming)
-            } else if roll < 90 {
-                enterState(.idle)
-            } else if roll < 99.5 {
-                enterState(.running)
+            if !hasStartedExploration || roll >= 0.82 {
+                beginExploration()
             } else {
-                enterState(.binky)
+                enterStillState(roll < 0.58 ? .resting : .idle)
+                scheduleNextStillState()
             }
-
         case .resting:
-            // 35% -> sleeping, 35% -> grooming, 20% -> idle, 9.5% -> running, 0.5% -> binky
-            if roll < 35 {
-                enterState(.sleeping)
-            } else if roll < 70 {
-                enterState(.grooming)
-            } else if roll < 90 {
-                enterState(.idle)
-            } else if roll < 99.5 {
-                enterState(.running)
+            if roll < 0.005 {
+                performBinky()
+            } else if roll < 0.35 {
+                enterStillState(.sleeping); scheduleNextStillState()
+            } else if roll < 0.62 {
+                enterStillState(.grooming); scheduleNextStillState()
+            } else if roll < 0.82 {
+                enterStillState(.idle); scheduleNextStillState()
             } else {
-                enterState(.binky)
+                beginExploration()
             }
-
         case .grooming:
-            // 40% -> resting, 25% -> sleeping, 25% -> idle, 9.8% -> running, 0.2% -> binky
-            if roll < 40 {
-                enterState(.resting)
-            } else if roll < 65 {
-                enterState(.sleeping)
-            } else if roll < 90 {
-                enterState(.idle)
-            } else if roll < 99.8 {
-                enterState(.running)
+            if roll < 0.002 {
+                performBinky()
+            } else if roll < 0.45 {
+                enterStillState(.resting); scheduleNextStillState()
+            } else if roll < 0.72 {
+                enterStillState(.sleeping); scheduleNextStillState()
             } else {
-                enterState(.binky)
+                beginExploration()
             }
-
         case .idle:
-            // 35% -> resting, 25% -> sleeping, 25% -> grooming, 14.5% -> running, 0.5% -> binky
-            if roll < 35 {
-                enterState(.resting)
-            } else if roll < 60 {
-                enterState(.sleeping)
-            } else if roll < 85 {
-                enterState(.grooming)
-            } else if roll < 99.5 {
-                enterState(.running)
+            if roll < 0.005 {
+                performBinky()
+            } else if roll < 0.28 {
+                enterStillState(.resting); scheduleNextStillState()
+            } else if roll < 0.48 {
+                enterStillState(.grooming); scheduleNextStillState()
             } else {
-                enterState(.binky)
+                beginExploration()
             }
-
-        case .running:
-            // A bound is followed by a recovery rest.
-            enterState(.resting)
-
-        case .binky:
-            // Handled by completion callback
+        case .running, .binky:
             break
         }
     }
 
-    // MARK: - Running (Rare Event)
+    // MARK: - Short exploration bouts
 
-    private var canStartRun: Bool {
-        guard let lastRunDate else { return true }
-        return Date().timeIntervalSince(lastRunDate) >= runCooldown
+    private func beginExploration() {
+        guard rabbit != nil, !isPaused else { return }
+        hasStartedExploration = true
+        hopsRemaining = random.int(in: 1...3)
+        enterStillState(.idle)
+        scheduleTransition(after: random.duration(0.45...0.9)) { [weak self] in
+            self?.startNextHop()
+        }
     }
 
-    private var canStartBinky: Bool {
-        guard let lastBinkyDate else { return true }
-        return Date().timeIntervalSince(lastBinkyDate) >= binkyCooldown
+    private func chooseDirectionAndDistance() -> (direction: CGFloat, distance: CGFloat, turnPause: TimeInterval) {
+        let x = rabbit.position.x
+        let leftRoom = x - minimumX
+        let rightRoom = maximumX - x
+        var nextDirection = direction
+        var turnPause: TimeInterval = 0.18
+
+        func room(for travelDirection: CGFloat) -> CGFloat {
+            travelDirection > 0 ? rightRoom : leftRoom
+        }
+
+        if room(for: nextDirection) < minimumHop {
+            nextDirection = -nextDirection
+            turnPause = random.duration(0.55...0.9)
+        } else if random.unit() < 0.22 {
+            let reversed = -nextDirection
+            if room(for: reversed) >= minimumHop {
+                nextDirection = reversed
+                turnPause = random.duration(0.35...0.7)
+            }
+        }
+
+        let available = max(0, room(for: nextDirection))
+        let requested = random.cgFloat(in: minimumHop...maximumHop)
+        let distance = Self.boundedHopDistance(requested: requested, available: available)
+        direction = nextDirection
+        return (nextDirection, distance, turnPause)
     }
 
-    private func startRunning() {
-        guard canStartRun else {
-            enterState(.resting)
+    private func startNextHop() {
+        guard hopsRemaining > 0, rabbit != nil, !isPaused else { return }
+        let plan = chooseDirectionAndDistance()
+        currentState = .running
+        rabbit.xScale = 0.58 * plan.direction
+        rabbit.yScale = 0.58
+        rabbit.startIdleAnimation()
+
+        // The look pause is followed by gather -> takeoff -> flight -> land.
+        scheduleTransition(after: plan.turnPause) { [weak self] in
+            guard let self, let rabbit = self.rabbit, !self.isPaused else { return }
+            // Apply the latest CPU tempo only after the visual node has cleared
+            // its prior actions. Changing SKNode.speed during a running move
+            // action can freeze that action.
+            rabbit.startRunningAnimation(includeResidualBob: false)
+            rabbit.speed = self.performance.animationSpeed
+            let push = plan.distance * 0.16
+            let flight = plan.distance * 0.62
+            let landing = plan.distance - push - flight
+            rabbit.run(SKAction.sequence([
+                SKAction.wait(forDuration: 0.17),
+                SKAction.moveBy(x: plan.direction * push, y: 0.6, duration: 0.11),
+                SKAction.moveBy(x: plan.direction * flight, y: 1.2, duration: 0.16),
+                SKAction.moveBy(x: plan.direction * landing, y: -1.8, duration: 0.15),
+                SKAction.wait(forDuration: 0.10),
+                SKAction.run { [weak self] in self?.finishHop() }
+            ]), withKey: self.movementKey)
+        }
+    }
+
+    private func finishHop() {
+        guard rabbit != nil else { return }
+        hopsRemaining -= 1
+        rabbit.startRestingAnimation()
+        rabbit.speed = 1.0
+        currentState = .resting
+        if hopsRemaining > 0 {
+            scheduleTransition(after: random.duration(0.7...1.7)) { [weak self] in
+                self?.startNextHop()
+            }
+        } else {
+            scheduleTransition(after: random.duration(8...18)) { [weak self] in
+                self?.chooseNextStillState()
+            }
+        }
+    }
+
+    // MARK: - Rare binky
+
+    private func performBinky() {
+        guard rabbit != nil, binkyAvailable else {
+            enterStillState(.resting)
+            scheduleNextStillState()
             return
         }
-        // Keep a sustained high-load signal latched; lastRunDate provides the
-        // separate 75-second refractory period before another burst.
-        lastRunDate = Date()
-        rabbit.startRunningAnimation()
-
-        let screenWidth = size.width
-
-        // One visible pass is enough. Returning across the screen made the
-        // rabbit look like a scheduled patrol; it now resets home off-screen
-        // after the burst and settles.
-        let runRight = SKAction.moveTo(x: screenWidth + 30, duration: 6.0)
-        let disappear = SKAction.run { [weak self] in
+        removeAction(forKey: stateScheduleKey)
+        binkyAvailable = false
+        run(SKAction.sequence([
+            SKAction.wait(forDuration: Self.binkyCooldown),
+            SKAction.run { [weak self] in self?.binkyAvailable = true }
+        ]), withKey: binkyCooldownKey)
+        currentState = .binky
+        rabbit.performBinky { [weak self] in
             guard let self else { return }
-            self.rabbit.position = self.homePosition
+            self.enterStillState(.resting)
+            self.scheduleNextStillState()
         }
-        let done = SKAction.run { [weak self] in
-            self?.enterState(.resting)
-        }
-
-        let sequence = SKAction.sequence([runRight, disappear, done])
-        rabbit.run(sequence, withKey: "movement")
     }
 }

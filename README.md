@@ -1,16 +1,17 @@
 # BunnyBar
 
-BunnyBar is a tiny macOS menu-bar companion: an original vector rabbit runs
-along the top edge of every connected display. Its animation speed reflects the
-current CPU load, so the rabbit stays calm while the Mac is idle and zooms when
-work picks up.
+BunnyBar is a tiny macOS menu-bar companion: an original lop-ear rabbit makes
+short, physical hops along the top edge of every connected display. Its tempo
+softly reflects current CPU load, while rest and exploration remain independent
+of external load spikes.
 
 ## Features
 
-- CPU-aware rabbit animation (0.75×–1.65×) with a lightweight 1.5-second sampler
-- Four-frame monochrome lop-ear silhouette cycle drawn with Core Graphics paths
+- CPU-aware rabbit animation (0.90×–1.15×) with a lightweight 1.5-second sampler
+- Four-phase monochrome lop-ear hop using the accepted still-state texture with only subtle position and squash transforms
 - CPU, motion state, speed, and memory information in the menu-bar menu
 - Transparent, click-through overlay that does not steal focus
+- Short one-to-three-hop exploration bouts with quiet rest and edge-aware turns
 - One overlay per display; overlays are rebuilt when displays change and follow all Spaces/fullscreen
 - Show/Hide and Quit controls from the 🐰 status item
 - Optional **Launch at Login** setting from the status-item menu (managed by macOS Login Items)
@@ -33,6 +34,21 @@ open build/DerivedData/Build/Products/Debug/BunnyBar.app
 Or open the project in Xcode, select the `BunnyBar` scheme, and press Run. The
 app is an accessory/menu-bar app, so it does not open a normal Dock window.
 
+For the deterministic offscreen behavior check, run from the repository root
+on a logged-in Mac:
+
+```sh
+xcrun swiftc -warnings-as-errors \
+  -module-cache-path /private/tmp/BunnyBarRuntimeCheckModuleCache \
+  -framework AppKit -framework Metal -framework SpriteKit \
+  BunnyBar/Sources/BunnyBar/App/SystemMetrics.swift \
+  BunnyBar/Sources/BunnyBar/Scenes/RabbitNode.swift \
+  BunnyBar/Sources/BunnyBar/Scenes/RabbitScene.swift \
+  BunnyBar/Tests/RabbitBehaviorRuntimeCheck.swift \
+  -o /private/tmp/BunnyBarBehaviorRuntimeCheck && \
+  /private/tmp/BunnyBarBehaviorRuntimeCheck
+```
+
 ## Use
 
 Click the 🐰 status item to see live CPU and memory values. **Hide Bunny**
@@ -53,8 +69,8 @@ credentials. A Debug build is not a distributable signed release.
 
 BunnyBar's concept is inspired by [RunDog](https://github.com/tsuyoshi-otake/run-dog)
 and [RunCat Neo](https://github.com/runcat-dev/RunCatNeo). Their names, code, and
-artwork are not bundled here; BunnyBar uses its own vector rabbit and MIT
-licensed source.
+artwork are not bundled here; BunnyBar uses its own monochrome rabbit visuals
+and MIT licensed source.
 
 ## Troubleshooting
 

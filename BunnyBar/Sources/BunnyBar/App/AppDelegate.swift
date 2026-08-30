@@ -8,7 +8,13 @@ import ServiceManagement
 import SpriteKit
 
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
+    private final class OverlayWindow: NSWindow {
+        override var canBecomeKey: Bool { false }
+        override var canBecomeMain: Bool { false }
+    }
+
     private final class Overlay {
+        private let screenFrame: NSRect
         let window: NSWindow
         let view: SKView
         let scene: RabbitScene
@@ -16,19 +22,33 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         init(screen: NSScreen, appearance: NSAppearance?) {
             let height: CGFloat = 44
-            let frame = NSRect(x: screen.frame.minX, y: screen.frame.maxY - height,
-                               width: screen.frame.width, height: height)
-            window = NSWindow(contentRect: frame, styleMask: [.borderless], backing: .buffered, defer: false)
+            screenFrame = screen.frame
+            // The viewport only needs room for the ~37pt still texture and a
+            // little motion margin. A bounded window is important: even if a
+            // compositor loses the clear surface, it cannot cover the whole
+            // menu bar or another display.
+            let viewportWidth = min(88, max(1, screen.frame.width))
+            let initialRabbitX = screen.frame.width * 0.40
+            let initialX = RabbitScene.viewportOriginX(screenMinX: screen.frame.minX,
+                                                       screenWidth: screen.frame.width,
+                                                       rabbitX: initialRabbitX,
+                                                       viewportWidth: viewportWidth)
+            let frame = NSRect(x: initialX, y: screen.frame.maxY - height,
+                               width: viewportWidth, height: height)
+            window = OverlayWindow(contentRect: frame, styleMask: [.borderless], backing: .buffered, defer: false)
             window.isOpaque = false
             window.backgroundColor = .clear
+            window.alphaValue = 1
             window.hasShadow = false
             // Keep the transparent overlay just above the system menu-bar
             // content; `.statusBar` itself can render behind the bar's own
-            // compositor layer. This remains the minimum elevation needed to
-            // make the rabbit visible while retaining click-through behavior.
+            // compositor layer.
             window.level = NSWindow.Level(rawValue: NSWindow.Level.statusBar.rawValue + 1)
             window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
             window.ignoresMouseEvents = true
+            window.acceptsMouseMovedEvents = false
+            window.isExcludedFromWindowsMenu = true
+            window.hidesOnDeactivate = false
             window.isReleasedWhenClosed = false
 
             let contentFrame = NSRect(origin: .zero, size: frame.size)
@@ -36,11 +56,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             view.allowsTransparency = true
             view.ignoresSiblingOrder = true
             // This is a narrow ambient overlay, not a game surface. A 20 fps
-            // cap keeps motion readable while avoiding a full-width 60 fps
-            // transparent redraw on every display.
+            // cap keeps motion readable without a continuous high-rate redraw.
             view.preferredFramesPerSecond = 20
             view.shouldCullNonVisibleNodes = true
+            view.wantsLayer = true
+            view.layer?.isOpaque = false
+            view.layer?.backgroundColor = NSColor.clear.cgColor
             hostingView = ClickableHostingView(frame: contentFrame)
+            hostingView.wantsLayer = true
+            hostingView.layer?.backgroundColor = NSColor.clear.cgColor
             hostingView.addSubview(view)
             window.contentView = hostingView
 
@@ -52,12 +76,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             view.appearance = appearance
 
             scene = RabbitScene(size: frame.size)
+            scene.worldWidth = screen.frame.width
             scene.scaleMode = .resizeFill
+            scene.onRabbitPositionChange = { [weak self] rabbitX in
+                self?.updateWindowPosition(forRabbitX: rabbitX)
+            }
             view.presentScene(scene)
             hostingView.onAppearanceChange = { [weak self] in
                 self?.applyAppearance(self?.menuBarAppearance)
             }
             scene.refreshAppearance()
+        }
+
+        private func updateWindowPosition(forRabbitX rabbitX: CGFloat) {
+            guard Thread.isMainThread else {
+                DispatchQueue.main.async { [weak self] in
+                    self?.updateWindowPosition(forRabbitX: rabbitX)
+                }
+                return
+            }
+            let clampedX = RabbitScene.viewportOriginX(screenMinX: screenFrame.minX,
+                                                       screenWidth: screenFrame.width,
+                                                       rabbitX: rabbitX,
+                                                       viewportWidth: window.frame.width)
+            guard abs(window.frame.minX - clampedX) > 0.25 else { return }
+            window.setFrameOrigin(NSPoint(x: clampedX, y: window.frame.minY))
         }
 
         private var menuBarAppearance: NSAppearance? {
@@ -98,8 +141,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var latestPerformance = RabbitPerformance(cpuPercent: 0)
 
     private let cpuMenuItem = NSMenuItem(title: "CPU 0% · Calm", action: nil, keyEquivalent: "")
-    private let stateMenuItem = NSMenuItem(title: "Rabbit state · Sleeping", action: nil, keyEquivalent: "")
-    private let speedMenuItem = NSMenuItem(title: "Rabbit speed 0.75×", action: nil, keyEquivalent: "")
+    private let stateMenuItem = NSMenuItem(title: "Rabbit state · Watching", action: nil, keyEquivalent: "")
+    private let speedMenuItem = NSMenuItem(title: "Next hop tempo 0.90×", action: nil, keyEquivalent: "")
     private let memoryMenuItem = NSMenuItem(title: "Memory —", action: nil, keyEquivalent: "")
     private let launchAtLoginMenuItem = NSMenuItem(title: "Launch at Login", action: #selector(toggleLaunchAtLogin), keyEquivalent: "")
     private var visibilityMenuItem: NSMenuItem!
@@ -230,9 +273,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         latestPerformance = RabbitPerformance(cpuPercent: latestSnapshot.cpuPercent)
         overlays.values.forEach { $0.scene.applyPerformance(latestPerformance) }
         cpuMenuItem.title = String(format: "CPU %.0f%% · %@", latestPerformance.cpuPercent, latestPerformance.status)
-        let state = overlays.values.first?.scene.stateDescription ?? "Sleeping"
+        let state = overlays.values.first?.scene.stateDescription ?? "Watching"
         stateMenuItem.title = "Rabbit state · \(state)"
-        speedMenuItem.title = String(format: "Rabbit speed %.2f×", Double(latestPerformance.animationSpeed))
+        speedMenuItem.title = String(format: "Next hop tempo %.2f×", Double(latestPerformance.animationSpeed))
         if let memory = latestSnapshot.memoryPercent {
             memoryMenuItem.title = String(format: "Memory %.0f%% used", memory)
         } else {

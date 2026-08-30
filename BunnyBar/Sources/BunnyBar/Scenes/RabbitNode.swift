@@ -16,7 +16,6 @@ class RabbitNode: SKNode {
     }
 
     private var currentVisual: SKNode?
-    private var runningShapes: [RunningFrame: SKShapeNode] = [:]
 
     // Resolve the label color against the overlay's effective appearance so
     // the monochrome rabbit remains visible on both light and dark menu bars.
@@ -41,9 +40,6 @@ class RabbitNode: SKNode {
             applyAppearance(to: currentShape, foreground: foreground, outline: outline)
         } else if let currentTexture = currentVisual as? SKSpriteNode {
             applyAppearance(to: currentTexture, foreground: foreground)
-        }
-        for shape in runningShapes.values {
-            applyAppearance(to: shape, foreground: foreground, outline: outline)
         }
     }
 
@@ -77,107 +73,6 @@ class RabbitNode: SKNode {
     private func clearCurrentShape() {
         currentVisual?.removeFromParent()
         currentVisual = nil
-        runningShapes.values.forEach {
-            $0.isHidden = true
-            $0.removeFromParent()
-        }
-    }
-
-    // MARK: - Four-frame lop-eared running cycle
-
-    private func createRunningShape(frame: RunningFrame) -> SKShapeNode {
-        let path = CGMutablePath()
-        let lift: CGFloat
-        switch frame {
-        case .gather: lift = 0
-        case .launch: lift = 0.75
-        case .stretch: lift = 1.75
-        case .land: lift = 0.25
-        }
-
-        appendSingleRunningContour(to: path, frame: frame, lift: lift)
-
-        let shape = SKShapeNode(path: path)
-        shape.fillColor = rabbitColor
-        shape.strokeColor = rabbitColor
-        shape.lineWidth = 1.0
-        applyAppearance(to: shape, foreground: rabbitColor, outline: outlineColor)
-        return shape
-    }
-
-    /// One continuous outside edge for the running rabbit. Ears, tail, and
-    /// feet are broad perimeter lobes rather than overlapping subpaths; this
-    /// keeps the 22px silhouette solid under Core Graphics' non-zero fill.
-    private func appendSingleRunningContour(to path: CGMutablePath, frame: RunningFrame, lift: CGFloat) {
-        path.move(to: CGPoint(x: -21, y: 4 + lift))
-        // A single compact 2–3pt tail bump; no scallops or second path.
-        path.addCurve(to: CGPoint(x: -24, y: 5 + lift), control1: CGPoint(x: -22, y: 3 + lift), control2: CGPoint(x: -25, y: 3 + lift))
-        path.addCurve(to: CGPoint(x: -23, y: 8 + lift), control1: CGPoint(x: -25, y: 6 + lift), control2: CGPoint(x: -25, y: 8 + lift))
-        path.addCurve(to: CGPoint(x: -20, y: 8 + lift), control1: CGPoint(x: -22, y: 9 + lift), control2: CGPoint(x: -21, y: 9 + lift))
-        // Compact round rump and a shallow neck dip make the head readable.
-        path.addCurve(to: CGPoint(x: -14, y: 14 + lift), control1: CGPoint(x: -20, y: 10 + lift), control2: CGPoint(x: -18, y: 13 + lift))
-        path.addCurve(to: CGPoint(x: -5, y: 15 + lift), control1: CGPoint(x: -11, y: 15 + lift), control2: CGPoint(x: -8, y: 15 + lift))
-        path.addCurve(to: CGPoint(x: 1, y: 13 + lift), control1: CGPoint(x: -4, y: 15 + lift), control2: CGPoint(x: -2, y: 14 + lift))
-        // Large rounded head and tiny nose. The lop ear is shown only by the
-        // internal transparent seam below; the outer contour stays head-like.
-        path.addCurve(to: CGPoint(x: 8, y: 18 + lift), control1: CGPoint(x: 4, y: 12 + lift), control2: CGPoint(x: 5, y: 17 + lift))
-        path.addCurve(to: CGPoint(x: 16, y: 18 + lift), control1: CGPoint(x: 12, y: 19 + lift), control2: CGPoint(x: 14, y: 19 + lift))
-        path.addCurve(to: CGPoint(x: 23, y: 12 + lift), control1: CGPoint(x: 19, y: 17 + lift), control2: CGPoint(x: 21, y: 14 + lift))
-        path.addCurve(to: CGPoint(x: 24, y: 7 + lift), control1: CGPoint(x: 25, y: 10 + lift), control2: CGPoint(x: 25, y: 8 + lift))
-        path.addCurve(to: CGPoint(x: 23, y: 3 + lift), control1: CGPoint(x: 25, y: 5 + lift), control2: CGPoint(x: 25, y: 3 + lift))
-        // Nose to jaw to chest is one shallow rounded transition; no ear
-        // lobe hangs toward the feet.
-        path.addCurve(to: CGPoint(x: 21, y: 0 + lift), control1: CGPoint(x: 24, y: 2 + lift), control2: CGPoint(x: 23, y: 0 + lift))
-        path.addCurve(to: CGPoint(x: 18, y: -3 + lift), control1: CGPoint(x: 21, y: -1 + lift), control2: CGPoint(x: 20, y: -3 + lift))
-        path.addCurve(to: CGPoint(x: 13, y: -4 + lift), control1: CGPoint(x: 16, y: -3 + lift), control2: CGPoint(x: 15, y: -4 + lift))
-        path.addCurve(to: CGPoint(x: 8, y: -3 + lift), control1: CGPoint(x: 11, y: -4 + lift), control2: CGPoint(x: 9, y: -3 + lift))
-
-        // Short front-foot bump. Only the position of this outer bump changes
-        // between gait phases; the torso/head remain the same rabbit.
-        switch frame {
-        case .gather, .land:
-            path.addCurve(to: CGPoint(x: 6, y: -9 + lift), control1: CGPoint(x: 7, y: -6 + lift), control2: CGPoint(x: 6, y: -8 + lift))
-            path.addCurve(to: CGPoint(x: 10, y: -11 + lift), control1: CGPoint(x: 7, y: -10 + lift), control2: CGPoint(x: 9, y: -12 + lift))
-            path.addCurve(to: CGPoint(x: 6, y: -12 + lift), control1: CGPoint(x: 11, y: -12 + lift), control2: CGPoint(x: 9, y: -13 + lift))
-            path.addCurve(to: CGPoint(x: 1, y: -9 + lift), control1: CGPoint(x: 5, y: -12 + lift), control2: CGPoint(x: 2, y: -11 + lift))
-        case .launch:
-            path.addCurve(to: CGPoint(x: 6, y: -8 + lift), control1: CGPoint(x: 7, y: -5 + lift), control2: CGPoint(x: 7, y: -7 + lift))
-            path.addCurve(to: CGPoint(x: 10, y: -10 + lift), control1: CGPoint(x: 7, y: -9 + lift), control2: CGPoint(x: 9, y: -11 + lift))
-            path.addCurve(to: CGPoint(x: 6, y: -11 + lift), control1: CGPoint(x: 11, y: -11 + lift), control2: CGPoint(x: 9, y: -12 + lift))
-            path.addCurve(to: CGPoint(x: 1, y: -8 + lift), control1: CGPoint(x: 5, y: -11 + lift), control2: CGPoint(x: 2, y: -10 + lift))
-        case .stretch:
-            path.addCurve(to: CGPoint(x: 6, y: -7 + lift), control1: CGPoint(x: 7, y: -4 + lift), control2: CGPoint(x: 7, y: -6 + lift))
-            path.addCurve(to: CGPoint(x: 13, y: -9 + lift), control1: CGPoint(x: 8, y: -8 + lift), control2: CGPoint(x: 11, y: -10 + lift))
-            path.addCurve(to: CGPoint(x: 9, y: -11 + lift), control1: CGPoint(x: 14, y: -10 + lift), control2: CGPoint(x: 12, y: -12 + lift))
-            path.addCurve(to: CGPoint(x: 1, y: -7 + lift), control1: CGPoint(x: 8, y: -10 + lift), control2: CGPoint(x: 3, y: -9 + lift))
-        }
-        path.addCurve(to: CGPoint(x: 0, y: -5 + lift), control1: CGPoint(x: 2, y: -7 + lift), control2: CGPoint(x: 1, y: -6 + lift))
-
-        // The hind-foot bump remains thick and compact even in stretch.
-        switch frame {
-        case .gather, .land:
-            path.addCurve(to: CGPoint(x: -3, y: -10 + lift), control1: CGPoint(x: -1, y: -7 + lift), control2: CGPoint(x: -2, y: -9 + lift))
-            path.addCurve(to: CGPoint(x: -9, y: -11 + lift), control1: CGPoint(x: -5, y: -10 + lift), control2: CGPoint(x: -7, y: -12 + lift))
-            path.addCurve(to: CGPoint(x: -15, y: -11 + lift), control1: CGPoint(x: -11, y: -12 + lift), control2: CGPoint(x: -14, y: -12 + lift))
-            path.addCurve(to: CGPoint(x: -19, y: -9 + lift), control1: CGPoint(x: -17, y: -11 + lift), control2: CGPoint(x: -19, y: -11 + lift))
-            path.addCurve(to: CGPoint(x: -17, y: -6 + lift), control1: CGPoint(x: -19, y: -8 + lift), control2: CGPoint(x: -18, y: -7 + lift))
-        case .launch:
-            path.addCurve(to: CGPoint(x: -5, y: -10 + lift), control1: CGPoint(x: -1, y: -7 + lift), control2: CGPoint(x: -3, y: -9 + lift))
-            path.addCurve(to: CGPoint(x: -13, y: -12 + lift), control1: CGPoint(x: -7, y: -11 + lift), control2: CGPoint(x: -10, y: -12 + lift))
-            path.addCurve(to: CGPoint(x: -20, y: -11 + lift), control1: CGPoint(x: -16, y: -13 + lift), control2: CGPoint(x: -19, y: -13 + lift))
-            path.addCurve(to: CGPoint(x: -22, y: -8 + lift), control1: CGPoint(x: -22, y: -10 + lift), control2: CGPoint(x: -22, y: -9 + lift))
-            path.addCurve(to: CGPoint(x: -15, y: -6 + lift), control1: CGPoint(x: -20, y: -8 + lift), control2: CGPoint(x: -17, y: -7 + lift))
-        case .stretch:
-            path.addCurve(to: CGPoint(x: -5, y: -9 + lift), control1: CGPoint(x: -1, y: -7 + lift), control2: CGPoint(x: -3, y: -8 + lift))
-            path.addCurve(to: CGPoint(x: -14, y: -10 + lift), control1: CGPoint(x: -8, y: -9 + lift), control2: CGPoint(x: -11, y: -10 + lift))
-            path.addCurve(to: CGPoint(x: -21, y: -9 + lift), control1: CGPoint(x: -17, y: -11 + lift), control2: CGPoint(x: -20, y: -11 + lift))
-            path.addCurve(to: CGPoint(x: -23, y: -6 + lift), control1: CGPoint(x: -23, y: -8 + lift), control2: CGPoint(x: -23, y: -7 + lift))
-            path.addCurve(to: CGPoint(x: -15, y: -5 + lift), control1: CGPoint(x: -21, y: -6 + lift), control2: CGPoint(x: -18, y: -5 + lift))
-        }
-        path.addCurve(to: CGPoint(x: -24, y: -3 + lift), control1: CGPoint(x: -20, y: -4 + lift), control2: CGPoint(x: -22, y: -4 + lift))
-        path.addCurve(to: CGPoint(x: -24, y: 4 + lift), control1: CGPoint(x: -27, y: 0 + lift), control2: CGPoint(x: -27, y: 2 + lift))
-        path.closeSubpath()
-        appendEarCutout(to: path, baseY: 10.0, yOffset: lift)
     }
 
     /// Reverse-winding, closed teardrop inside the lop ear. With the
@@ -619,25 +514,39 @@ class RabbitNode: SKNode {
     // MARK: - Show Poses
 
     private func showRunningPose(frame: RunningFrame = .gather) {
-        if runningShapes.isEmpty {
-            for runningFrame in RunningFrame.allCases {
-                runningShapes[runningFrame] = createRunningShape(frame: runningFrame)
-            }
-        }
-
-        let framesAreAttached = runningShapes.values.contains { $0.parent === self }
-        if !framesAreAttached {
+        let textureNode: SKSpriteNode
+        if let existingTexture = currentVisual as? SKSpriteNode {
+            textureNode = existingTexture
+        } else {
             clearCurrentShape()
-            for shape in runningShapes.values {
-                shape.isHidden = true
-                addChild(shape)
-            }
+            textureNode = createStillTextureNode()
+            addChild(textureNode)
         }
 
-        for (runningFrame, shape) in runningShapes {
-            shape.isHidden = runningFrame != frame
+        // Keep the adopted LopRabbit silhouette identical throughout the hop.
+        // At the scene's 0.58 scale these offsets become about 1–2.3 visible
+        // pixels; the scene's own hop arc supplies the remainder of the lift.
+        let yOffset: CGFloat
+        let yScale: CGFloat
+        switch frame {
+        case .gather:
+            yOffset = -0.5
+            yScale = 0.97
+        case .launch:
+            yOffset = 2.0
+            yScale = 1.0
+        case .stretch:
+            yOffset = 4.0
+            yScale = 1.0
+        case .land:
+            yOffset = -0.5
+            yScale = 0.97
         }
-        currentVisual = runningShapes[frame]
+
+        textureNode.position = CGPoint(x: 0, y: yOffset)
+        textureNode.xScale = 1.0
+        textureNode.yScale = yScale
+        currentVisual = textureNode
     }
 
     private func showIdlePose() {
@@ -706,7 +615,7 @@ class RabbitNode: SKNode {
 
     // MARK: - Running Animation
 
-    func startRunningAnimation() {
+    func startRunningAnimation(includeResidualBob: Bool = true) {
         stopAllAnimations()
         showRunningPose(frame: .gather)
 
@@ -729,6 +638,8 @@ class RabbitNode: SKNode {
             ]
         } + [SKAction.wait(forDuration: 0.10)]
         run(SKAction.repeatForever(SKAction.sequence(frameActions)), withKey: "runningCycle")
+
+        guard includeResidualBob else { return }
 
         // The pose already contains the main lift. This small residual bob
         // keeps the silhouette grounded instead of making it float.
@@ -776,7 +687,7 @@ class RabbitNode: SKNode {
         stopAllAnimations()
         showBinkyPose()
 
-        let jumpHeight: CGFloat = 10
+        let jumpHeight: CGFloat = 2.5
         let jumpDuration: TimeInterval = 0.42
 
         // Jump arc
@@ -786,8 +697,8 @@ class RabbitNode: SKNode {
         jumpDown.timingMode = .easeIn
 
         // Slight twist
-        let twist = SKAction.rotate(byAngle: .pi * 0.08, duration: jumpDuration)
-        let untwist = SKAction.rotate(byAngle: -.pi * 0.08, duration: jumpDuration)
+        let twist = SKAction.rotate(byAngle: .pi * 0.04, duration: jumpDuration)
+        let untwist = SKAction.rotate(byAngle: -.pi * 0.04, duration: jumpDuration)
 
         let binkySequence = SKAction.sequence([
             SKAction.group([jumpUp, twist]),
