@@ -13,9 +13,11 @@ of external load spikes.
 - Transparent, click-through overlay that does not steal focus
 - Short one-to-three-hop exploration bouts with quiet rest and edge-aware turns
 - One overlay per display; overlays are rebuilt when displays change and follow all Spaces/fullscreen
-- Show/Hide and Quit controls from the 🐰 status item
+- Show/Hide and Quit controls from the monochrome rabbit status item
 - Optional **Launch at Login** setting from the status-item menu (managed by macOS Login Items)
 - No external frameworks or runtime services
+- Native macOS app icon based on the same monochrome lop-ear silhouette
+- Supports macOS 13 Ventura and later
 
 ## Build and run
 
@@ -34,6 +36,10 @@ open build/DerivedData/Build/Products/Debug/BunnyBar.app
 Or open the project in Xcode, select the `BunnyBar` scheme, and press Run. The
 app is an accessory/menu-bar app, so it does not open a normal Dock window.
 
+Run `Scripts/verify.sh` for the Debug build and both deterministic native checks.
+Regenerate the complete AppIcon asset from the adopted silhouette with
+`swift -module-cache-path /private/tmp/BunnyBarIconModuleCache Scripts/generate-app-icon.swift`.
+
 For the deterministic offscreen behavior check, run from the repository root
 on a logged-in Mac:
 
@@ -51,7 +57,7 @@ xcrun swiftc -warnings-as-errors \
 
 ## Use
 
-Click the 🐰 status item to see live CPU and memory values. **Hide Bunny**
+Click the rabbit status item to see live CPU and memory values. **Hide Bunny**
 pauses and removes all overlays; **Show Bunny** restores them. **Quit BunnyBar**
 terminates the app. The overlay is intentionally click-through, so regular
 menu-bar and application interactions remain unaffected. To start BunnyBar
@@ -60,10 +66,12 @@ approval, the item opens **System Settings → General → Login Items**.
 
 ## Release
 
-For a local archive, use Xcode's Archive action or the scripts in `Scripts/`
-after configuring signing. `Scripts/release.sh` and `Scripts/notarize.sh` are
-templates and may require an Apple Developer team, certificate, and notarization
-credentials. A Debug build is not a distributable signed release.
+To create an unsigned Release candidate for local testing, run
+`Scripts/build-unsigned-rc.sh 0.1.0`. Do not publish that archive. A public
+release must be signed with Developer ID, notarized, and stapled; the complete
+credential-gated flow is implemented by `Scripts/release.sh`. See
+[`docs/release.md`](docs/release.md) for the final checklist. A Debug build is
+not a distributable signed release.
 
 ## Inspiration and license
 
