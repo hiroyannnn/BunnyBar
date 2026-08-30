@@ -39,6 +39,8 @@ app is an accessory/menu-bar app, so it does not open a normal Dock window.
 Run `Scripts/verify.sh` for the Debug build and both deterministic native checks.
 Regenerate the complete AppIcon asset from the adopted silhouette with
 `swift -module-cache-path /private/tmp/BunnyBarIconModuleCache Scripts/generate-app-icon.swift`.
+The compact menu-bar symbol is a separate 18pt asset; regenerate it with
+`swift -module-cache-path /private/tmp/BunnyBarStatusIconModuleCache Scripts/generate-status-icon.swift`.
 
 For the deterministic offscreen behavior check, run from the repository root
 on a logged-in Mac:
