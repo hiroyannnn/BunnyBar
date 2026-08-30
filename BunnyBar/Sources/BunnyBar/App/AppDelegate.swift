@@ -159,10 +159,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     private func setupStatusItem() {
-        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         if let source = NSImage(named: "StatusRabbit"),
            let icon = source.copy() as? NSImage {
-            icon.size = NSSize(width: 18, height: 18)
+            icon.size = NSSize(width: 22, height: 18)
             icon.isTemplate = true
             statusItem.button?.image = icon
             statusItem.button?.imagePosition = .imageOnly

@@ -88,8 +88,8 @@ let oldPanel = panel(source: oldSource,
                      logicalSize: NSSize(width: 24, height: 12),
                      caption: "OLD — full body, 24 × 12 pt")
 let newPanel = panel(source: newSource,
-                     logicalSize: NSSize(width: 18, height: 18),
-                     caption: "NEW — compact lop mark, 18 × 18 pt")
+                     logicalSize: NSSize(width: 22, height: 18),
+                     caption: "NEW — adopted lop, 22 × 18 pt")
 
 let comparison = NSImage(size: NSSize(width: 656, height: 132))
 comparison.lockFocus()
