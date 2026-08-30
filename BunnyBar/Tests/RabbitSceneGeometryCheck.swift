@@ -30,6 +30,8 @@ private struct RabbitSceneGeometryCheck {
         application.setActivationPolicy(.accessory)
         let asset = "BunnyBar/Sources/BunnyBar/Resources/Assets.xcassets/LopRabbit.imageset/lop-rabbit.png"
         if let image = NSImage(contentsOfFile: asset) { image.setName("LopRabbit") }
+        let hopAsset = "BunnyBar/Sources/BunnyBar/Resources/Assets.xcassets/NaturalHop.imageset/natural-hop.png"
+        if let image = NSImage(contentsOfFile: hopAsset) { image.setName("NaturalHop") }
         require(abs(Double(RabbitPerformance.speed(for: 0)) - 0.90) < 0.001,
                 "idle CPU speed changed")
         require(abs(Double(RabbitPerformance.speed(for: 100)) - 1.15) < 0.001,
@@ -99,12 +101,31 @@ private struct RabbitSceneGeometryCheck {
                 require(first.unit() == second.unit(), "seeded behavior diverged")
             }
             for _ in 0..<16 {
-                let requested = first.cgFloat(in: 24...58)
+                let requested = first.cgFloat(in: 18...38)
                 let available = CGFloat(19 + Int(first.unit() * 500))
                 require(RabbitScene.boundedHopDistance(requested: requested, available: available) <= available,
                         "short hop exceeded available room")
             }
         }
+
+        var previousHorizontal: CGFloat = -1
+        for sample in 0...100 {
+            let progress = RabbitScene.naturalHopProgress(at: CGFloat(sample) / 100)
+            require(progress.x >= previousHorizontal, "natural hop moved backwards")
+            require(progress.x >= 0 && progress.x <= 1, "natural hop exceeded horizontal bounds")
+            require(progress.y >= 0 && progress.y <= 1, "natural hop exceeded vertical bounds")
+            previousHorizontal = progress.x
+        }
+        require(RabbitScene.naturalHopProgress(at: 0) == .zero,
+                "natural hop no longer begins on the baseline")
+        let landing = RabbitScene.naturalHopProgress(at: 1)
+        require(abs(landing.x - 1) < 0.001 && abs(landing.y) < 0.001,
+                "natural hop no longer lands at its destination")
+        let contactTime = CGFloat(
+            RabbitNode.hopPropulsionDuration + RabbitNode.hopFlightDuration
+        ) / CGFloat(RabbitNode.hopMotionDuration)
+        require(abs(RabbitScene.naturalHopProgress(at: contactTime).y) < 0.001,
+                "forepaw contact still floats above the baseline")
 
         print("PASS: RabbitScene bounded viewport geometry")
     }

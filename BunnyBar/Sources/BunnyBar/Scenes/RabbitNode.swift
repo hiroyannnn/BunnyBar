@@ -8,11 +8,33 @@
 import SpriteKit
 
 class RabbitNode: SKNode {
-    private enum RunningFrame: CaseIterable, Hashable {
-        case gather
-        case launch
-        case stretch
-        case land
+    private enum RunningFrame: Int, CaseIterable, Hashable {
+        case brace
+        case crouch
+        case propulsion
+        case flight
+        case forepawContact
+        case hindfootLoad
+    }
+
+    // A relaxed house-rabbit hop is a compact half-bound, not a held leap.
+    // The two support poses lead into a brief flight, then the forepaws and
+    // hindfeet get enough screen time to make the contact order readable.
+    static let hopBraceDuration: TimeInterval = 0.05
+    static let hopCrouchDuration: TimeInterval = 0.08
+    static let hopPropulsionDuration: TimeInterval = 0.06
+    static let hopFlightDuration: TimeInterval = 0.09
+    static let hopForepawContactDuration: TimeInterval = 0.08
+    static let hopHindfootLoadDuration: TimeInterval = 0.09
+    static let hopSettleDuration: TimeInterval = 0.05
+
+    static var hopSupportDuration: TimeInterval {
+        hopBraceDuration + hopCrouchDuration
+    }
+
+    static var hopMotionDuration: TimeInterval {
+        hopPropulsionDuration + hopFlightDuration
+            + hopForepawContactDuration + hopHindfootLoadDuration
     }
 
     private var currentVisual: SKNode?
@@ -347,6 +369,52 @@ class RabbitNode: SKNode {
         return node
     }
 
+    /// The adopted LopRabbit is retained for brace/loading so entering a hop
+    /// cannot change the rabbit's apparent size. Image-2 supplies the four
+    /// contact-specific silhouettes from propulsion through hindfoot loading.
+    private func runningTexture(for frame: RunningFrame) -> SKTexture {
+        switch frame {
+        case .brace, .crouch:
+            let texture = SKTexture(imageNamed: "LopRabbit")
+            texture.filteringMode = .linear
+            return texture
+        case .propulsion, .flight, .forepawContact, .hindfootLoad:
+            break
+        }
+
+        let sheet = SKTexture(imageNamed: "NaturalHop")
+        sheet.filteringMode = .linear
+        let frameCount = CGFloat(RunningFrame.allCases.count)
+        let imageFrame: Int
+        switch frame {
+        case .propulsion: imageFrame = 2
+        case .flight: imageFrame = 3
+        case .forepawContact: imageFrame = 4
+        case .hindfootLoad: imageFrame = 5
+        case .brace, .crouch: preconditionFailure("Handled above")
+        }
+        let texture = SKTexture(
+            rect: CGRect(
+                x: CGFloat(imageFrame) / frameCount,
+                y: 0,
+                width: 1 / frameCount,
+                height: 1
+            ),
+            in: sheet
+        )
+        texture.filteringMode = .linear
+        return texture
+    }
+
+    private func createRunningTextureNode(frame: RunningFrame) -> SKSpriteNode {
+        let node = SKSpriteNode(
+            texture: runningTexture(for: frame),
+            size: CGSize(width: 64, height: 31)
+        )
+        applyAppearance(to: node, foreground: rabbitColor)
+        return node
+    }
+
     /// Curled sleeping lop rabbit. The tail and one ear are perimeter bumps;
     /// there are deliberately no inner paths, holes, or facial marks.
     private func createSingleSleepingShape() -> SKShapeNode {
@@ -513,39 +581,47 @@ class RabbitNode: SKNode {
 
     // MARK: - Show Poses
 
-    private func showRunningPose(frame: RunningFrame = .gather) {
+    private func showRunningPose(frame: RunningFrame = .brace) {
         let textureNode: SKSpriteNode
         if let existingTexture = currentVisual as? SKSpriteNode {
             textureNode = existingTexture
         } else {
             clearCurrentShape()
-            textureNode = createStillTextureNode()
+            textureNode = createRunningTextureNode(frame: frame)
             addChild(textureNode)
         }
 
-        // Keep the adopted LopRabbit silhouette identical throughout the hop.
-        // At the scene's 0.58 scale these offsets become about 1–2.3 visible
-        // pixels; the scene's own hop arc supplies the remainder of the lift.
-        let yOffset: CGFloat
-        let yScale: CGFloat
+        textureNode.texture = runningTexture(for: frame)
+        textureNode.size = CGSize(width: 64, height: 31)
         switch frame {
-        case .gather:
-            yOffset = -0.5
-            yScale = 0.97
-        case .launch:
-            yOffset = 2.0
-            yScale = 1.0
-        case .stretch:
-            yOffset = 4.0
-            yScale = 1.0
-        case .land:
-            yOffset = -0.5
-            yScale = 0.97
+        case .brace:
+            textureNode.position = .zero
+            textureNode.xScale = 1.0
+            textureNode.yScale = 1.0
+        case .crouch:
+            // Preserve visual mass while lowering the hips. Shrinking both
+            // axes was read as the whole rabbit momentarily getting smaller.
+            textureNode.position = CGPoint(x: 0, y: -0.45)
+            textureNode.xScale = 1.02
+            textureNode.yScale = 0.94
+        case .propulsion:
+            textureNode.position = CGPoint(x: 0, y: 0.93)
+            textureNode.xScale = 1.06
+            textureNode.yScale = 1.06
+        case .flight:
+            textureNode.position = CGPoint(x: 0, y: 1.86)
+            textureNode.xScale = 1.12
+            textureNode.yScale = 1.12
+        case .forepawContact:
+            textureNode.position = CGPoint(x: 0, y: 1.40)
+            textureNode.xScale = 1.09
+            textureNode.yScale = 1.09
+        case .hindfootLoad:
+            textureNode.position = CGPoint(x: 0, y: 0.47)
+            textureNode.xScale = 1.03
+            textureNode.yScale = 1.03
         }
-
-        textureNode.position = CGPoint(x: 0, y: yOffset)
-        textureNode.xScale = 1.0
-        textureNode.yScale = yScale
+        applyAppearance(to: textureNode, foreground: rabbitColor)
         currentVisual = textureNode
     }
 
@@ -617,17 +693,19 @@ class RabbitNode: SKNode {
 
     func startRunningAnimation(includeResidualBob: Bool = true) {
         stopAllAnimations()
-        showRunningPose(frame: .gather)
+        showRunningPose(frame: .brace)
 
-        // A rabbit's bound is asymmetric: gather and landing have a little
-        // more support time, while launch is a short push-off and stretch is
-        // a clear airborne phase. The settle pause prevents a mechanical
-        // four-frame loop at the menu-bar scale.
+        // Contact order matters more than even frame spacing: brace, hindquarter
+        // loading, toe-off, flight, forepaw contact, then hindfoot loading.
+        // Keeping propulsion short and both landings visible avoids the old
+        // impression of one static silhouette sliding along a programmed arc.
         let frameDurations: [RunningFrame: TimeInterval] = [
-            .gather: 0.17,
-            .launch: 0.11,
-            .stretch: 0.16,
-            .land: 0.15
+            .brace: Self.hopBraceDuration,
+            .crouch: Self.hopCrouchDuration,
+            .propulsion: Self.hopPropulsionDuration,
+            .flight: Self.hopFlightDuration,
+            .forepawContact: Self.hopForepawContactDuration,
+            .hindfootLoad: Self.hopHindfootLoadDuration
         ]
         let frameActions = RunningFrame.allCases.flatMap { frame in
             [
@@ -636,16 +714,16 @@ class RabbitNode: SKNode {
                 },
                 SKAction.wait(forDuration: frameDurations[frame] ?? 0.15)
             ]
-        } + [SKAction.wait(forDuration: 0.10)]
+        } + [SKAction.wait(forDuration: Self.hopSettleDuration)]
         run(SKAction.repeatForever(SKAction.sequence(frameActions)), withKey: "runningCycle")
 
         guard includeResidualBob else { return }
 
-        // The pose already contains the main lift. This small residual bob
-        // keeps the silhouette grounded instead of making it float.
-        let gentleBob = SKAction.moveBy(x: 0, y: 0.55, duration: 0.34)
+        // Preview-only residual motion. Production exploration supplies the
+        // full ballistic arc and disables this bob.
+        let gentleBob = SKAction.moveBy(x: 0, y: 0.45, duration: 0.31)
         gentleBob.timingMode = .easeInEaseOut
-        let gentleBobDown = SKAction.moveBy(x: 0, y: -0.55, duration: 0.34)
+        let gentleBobDown = SKAction.moveBy(x: 0, y: -0.45, duration: 0.31)
         gentleBobDown.timingMode = .easeInEaseOut
         let bobSequence = SKAction.sequence([gentleBob, gentleBobDown])
         run(SKAction.repeatForever(bobSequence), withKey: "runningBob")

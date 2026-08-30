@@ -27,6 +27,17 @@ Create a `notarytool` keychain profile without putting credentials in the repo:
 xcrun notarytool store-credentials BUNNYBAR_NOTARY
 ```
 
+Confirm both prerequisites before building:
+
+```sh
+security find-identity -v -p codesigning
+xcrun notarytool history --keychain-profile BUNNYBAR_NOTARY
+```
+
+The first command must list a valid `Developer ID Application` identity. If it
+reports `0 valid identities found`, create or install the certificate from
+**Xcode → Settings → Accounts → Manage Certificates** before continuing.
+
 This interactive Apple credential step is intentionally not automated. Do not
 commit Apple IDs, app-specific passwords, API keys, Team IDs, or certificates.
 

@@ -6,11 +6,15 @@ rests naturally between movements.
 
 ## Highlights
 
-- Original lop-ear silhouette with restrained four-phase hop animation
-- One-to-three-hop exploration bouts with edge-aware turns and no teleporting
+- Original lop-ear silhouette with a restrained six-pose half-bound
+- Real-video-informed contact order: hind-leg load, propulsion, brief flight,
+  forepaw contact, and hindfoot loading
+- Two-to-four-hop exploration bouts with committed direction, low travel, and
+  no stop-start or teleporting between adjacent hops
 - Lightweight CPU-aware tempo adjustment without interrupting rabbit behavior
 - Transparent, click-through overlays for every connected display
 - Show/Hide, live system metrics, and optional Launch at Login controls
+- Single-instance protection against duplicate Debug/Release menu-bar rabbits
 - No external services, analytics, accounts, or network access
 
 ## Requirements
@@ -25,5 +29,6 @@ rests naturally between movements.
 3. Open BunnyBar. Use the rabbit menu-bar item to enable Launch at Login if
    desired.
 
-BunnyBar is signed with Developer ID and notarized by Apple. The release page
-also includes a SHA-256 checksum for the ZIP archive.
+The published ZIP is universal for Apple silicon and Intel Macs. BunnyBar is
+signed with Developer ID and notarized by Apple; the notarization ticket is
+stapled before packaging. The Release page also includes a SHA-256 checksum.

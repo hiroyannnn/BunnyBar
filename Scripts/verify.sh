@@ -6,6 +6,8 @@ ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 MODULE_CACHE="/private/tmp/BunnyBarVerifyModuleCache"
 BEHAVIOR_CHECK="/private/tmp/BunnyBarBehaviorRuntimeCheck"
 GEOMETRY_CHECK="/private/tmp/BunnyBarRabbitSceneGeometryCheck"
+MOTION_CHECK="/private/tmp/BunnyBarMotionCapture"
+MOTION_SHEET="/private/tmp/BunnyBarNaturalHopMotionSheet.png"
 
 cd "${ROOT_DIR}"
 
@@ -35,5 +37,13 @@ xcrun swiftc -warnings-as-errors \
   BunnyBar/Tests/RabbitSceneGeometryCheck.swift \
   -o "${GEOMETRY_CHECK}"
 "${GEOMETRY_CHECK}"
+
+xcrun swiftc -warnings-as-errors \
+  -module-cache-path "${MODULE_CACHE}" \
+  -framework AppKit -framework Metal -framework SpriteKit \
+  BunnyBar/Sources/BunnyBar/Scenes/RabbitNode.swift \
+  BunnyBar/Tests/RabbitMotionCapture.swift \
+  -o "${MOTION_CHECK}"
+"${MOTION_CHECK}" "${MOTION_SHEET}"
 
 echo "PASS: BunnyBar build and deterministic checks"

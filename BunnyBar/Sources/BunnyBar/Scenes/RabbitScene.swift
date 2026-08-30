@@ -36,14 +36,15 @@ final class RabbitScene: SKScene {
     }
     private var direction: CGFloat = 1
     private var hopsRemaining = 0
+    private var boutNeedsTurnPause = false
     private var hasStartedExploration = false
     private var binkyAvailable = true
     private let stateScheduleKey = "rabbit-state-schedule"
     private let binkyCooldownKey = "rabbit-binky-cooldown"
     private let movementKey = "rabbit-hop-movement"
     private let bodyMargin: CGFloat = 19
-    private let minimumHop: CGFloat = 24
-    private let maximumHop: CGFloat = 58
+    private let minimumHop: CGFloat = 18
+    private let maximumHop: CGFloat = 38
 
     static let binkyCooldown: TimeInterval = 900
 
@@ -64,6 +65,51 @@ final class RabbitScene: SKScene {
 
     static func boundedHopDistance(requested: CGFloat, available: CGFloat) -> CGFloat {
         min(max(0, requested), max(0, available))
+    }
+
+    /// Normalized centre-of-mass travel for one relaxed indoor hop.
+    ///
+    /// Rear-leg propulsion accelerates into a short, low flight. The body is
+    /// back on the baseline when the forepaws contact, then forward motion
+    /// decelerates while the hindfeet swing under the body and load. This is
+    /// deliberately not a symmetric ease-in/ease-out arc: that read as a
+    /// generic programmed tween rather than rabbit locomotion.
+    static func naturalHopProgress(at unitTime: CGFloat) -> CGPoint {
+        let time = min(1, max(0, unitTime))
+        let motionDuration = CGFloat(RabbitNode.hopMotionDuration)
+        let propulsionEnd = CGFloat(RabbitNode.hopPropulsionDuration) / motionDuration
+        let flightEnd = CGFloat(
+            RabbitNode.hopPropulsionDuration + RabbitNode.hopFlightDuration
+        ) / motionDuration
+        let forepawEnd = CGFloat(
+            RabbitNode.hopPropulsionDuration + RabbitNode.hopFlightDuration
+                + RabbitNode.hopForepawContactDuration
+        ) / motionDuration
+
+        let horizontal: CGFloat
+        if time <= propulsionEnd {
+            let phase = time / propulsionEnd
+            horizontal = 0.13 * phase * phase
+        } else if time <= flightEnd {
+            let phase = (time - propulsionEnd) / (flightEnd - propulsionEnd)
+            horizontal = 0.13 + 0.54 * phase
+        } else if time <= forepawEnd {
+            let phase = (time - flightEnd) / (forepawEnd - flightEnd)
+            horizontal = 0.67 + 0.21 * phase
+        } else {
+            let phase = (time - forepawEnd) / (1 - forepawEnd)
+            horizontal = 0.88 + 0.12 * (1 - (1 - phase) * (1 - phase))
+        }
+
+        let vertical: CGFloat
+        if time < flightEnd {
+            let airbornePhase = time / flightEnd
+            vertical = 4 * airbornePhase * (1 - airbornePhase)
+        } else {
+            // Forepaw and hindfoot contact frames must not float on the arc.
+            vertical = 0
+        }
+        return CGPoint(x: horizontal, y: vertical)
     }
 
     override func didMove(to view: SKView) {
@@ -167,10 +213,10 @@ final class RabbitScene: SKScene {
     private func scheduleNextStillState() {
         let delay: ClosedRange<TimeInterval>
         switch currentState {
-        case .sleeping: delay = 45...100
-        case .resting: delay = 7...18
-        case .grooming: delay = 10...24
-        case .idle: delay = 2.5...7.0
+        case .sleeping: delay = 60...150
+        case .resting: delay = 12...30
+        case .grooming: delay = 6...14
+        case .idle: delay = 3.5...9.0
         case .running, .binky: return
         }
         scheduleTransition(after: random.duration(delay)) { [weak self] in
@@ -182,18 +228,18 @@ final class RabbitScene: SKScene {
         let roll = random.unit()
         switch currentState {
         case .sleeping:
-            if !hasStartedExploration || roll >= 0.82 {
+            if !hasStartedExploration || roll >= 0.88 {
                 beginExploration()
             } else {
-                enterStillState(roll < 0.58 ? .resting : .idle)
+                enterStillState(roll < 0.60 ? .resting : .idle)
                 scheduleNextStillState()
             }
         case .resting:
-            if roll < 0.005 {
+            if roll < 0.003 {
                 performBinky()
-            } else if roll < 0.35 {
+            } else if roll < 0.40 {
                 enterStillState(.sleeping); scheduleNextStillState()
-            } else if roll < 0.62 {
+            } else if roll < 0.60 {
                 enterStillState(.grooming); scheduleNextStillState()
             } else if roll < 0.82 {
                 enterStillState(.idle); scheduleNextStillState()
@@ -201,22 +247,26 @@ final class RabbitScene: SKScene {
                 beginExploration()
             }
         case .grooming:
-            if roll < 0.002 {
+            if roll < 0.001 {
                 performBinky()
-            } else if roll < 0.45 {
+            } else if roll < 0.55 {
                 enterStillState(.resting); scheduleNextStillState()
-            } else if roll < 0.72 {
+            } else if roll < 0.78 {
                 enterStillState(.sleeping); scheduleNextStillState()
+            } else if roll < 0.90 {
+                enterStillState(.idle); scheduleNextStillState()
             } else {
                 beginExploration()
             }
         case .idle:
-            if roll < 0.005 {
+            if roll < 0.003 {
                 performBinky()
-            } else if roll < 0.28 {
+            } else if roll < 0.38 {
                 enterStillState(.resting); scheduleNextStillState()
-            } else if roll < 0.48 {
+            } else if roll < 0.55 {
                 enterStillState(.grooming); scheduleNextStillState()
+            } else if roll < 0.66 {
+                enterStillState(.sleeping); scheduleNextStillState()
             } else {
                 beginExploration()
             }
@@ -230,7 +280,21 @@ final class RabbitScene: SKScene {
     private func beginExploration() {
         guard rabbit != nil, !isPaused else { return }
         hasStartedExploration = true
-        hopsRemaining = random.int(in: 1...3)
+        hopsRemaining = random.int(in: 2...4)
+
+        // Direction changes happen before a bout, never randomly between two
+        // consecutive hops. A house rabbit normally commits to a short line,
+        // then pauses to look or sniff before choosing another one.
+        if random.unit() < 0.14 {
+            let reversed = -direction
+            let reverseRoom = reversed > 0
+                ? maximumX - rabbit.position.x
+                : rabbit.position.x - minimumX
+            if reverseRoom >= minimumHop {
+                direction = reversed
+                boutNeedsTurnPause = true
+            }
+        }
         enterStillState(.idle)
         scheduleTransition(after: random.duration(0.45...0.9)) { [weak self] in
             self?.startNextHop()
@@ -242,7 +306,10 @@ final class RabbitScene: SKScene {
         let leftRoom = x - minimumX
         let rightRoom = maximumX - x
         var nextDirection = direction
-        var turnPause: TimeInterval = 0.18
+        var turnPause = boutNeedsTurnPause
+            ? random.duration(0.32...0.55)
+            : random.duration(0.06...0.12)
+        boutNeedsTurnPause = false
 
         func room(for travelDirection: CGFloat) -> CGFloat {
             travelDirection > 0 ? rightRoom : leftRoom
@@ -250,13 +317,7 @@ final class RabbitScene: SKScene {
 
         if room(for: nextDirection) < minimumHop {
             nextDirection = -nextDirection
-            turnPause = random.duration(0.55...0.9)
-        } else if random.unit() < 0.22 {
-            let reversed = -nextDirection
-            if room(for: reversed) >= minimumHop {
-                nextDirection = reversed
-                turnPause = random.duration(0.35...0.7)
-            }
+            turnPause = random.duration(0.45...0.72)
         }
 
         let available = max(0, room(for: nextDirection))
@@ -274,7 +335,8 @@ final class RabbitScene: SKScene {
         rabbit.yScale = 0.58
         rabbit.startIdleAnimation()
 
-        // The look pause is followed by gather -> takeoff -> flight -> land.
+        // The look pause is followed by support/loading, one continuous
+        // ballistic hop, forepaw contact, and hindfoot loading.
         scheduleTransition(after: plan.turnPause) { [weak self] in
             guard let self, let rabbit = self.rabbit, !self.isPaused else { return }
             // Apply the latest CPU tempo only after the visual node has cleared
@@ -282,15 +344,30 @@ final class RabbitScene: SKScene {
             // action can freeze that action.
             rabbit.startRunningAnimation(includeResidualBob: false)
             rabbit.speed = self.performance.animationSpeed
-            let push = plan.distance * 0.16
-            let flight = plan.distance * 0.62
-            let landing = plan.distance - push - flight
+
+            let takeoffPosition = rabbit.position
+            let landingPosition = CGPoint(
+                x: takeoffPosition.x + plan.direction * plan.distance,
+                y: takeoffPosition.y
+            )
+            let hopHeight = min(2.2, 1.3 + plan.distance / 45)
+            let movement = SKAction.customAction(
+                withDuration: RabbitNode.hopMotionDuration
+            ) { node, elapsed in
+                let duration = CGFloat(RabbitNode.hopMotionDuration)
+                let time = min(1, max(0, elapsed / duration))
+                let progress = Self.naturalHopProgress(at: time)
+                node.position = CGPoint(
+                    x: takeoffPosition.x
+                        + plan.direction * plan.distance * progress.x,
+                    y: takeoffPosition.y + hopHeight * progress.y
+                )
+            }
             rabbit.run(SKAction.sequence([
-                SKAction.wait(forDuration: 0.17),
-                SKAction.moveBy(x: plan.direction * push, y: 0.6, duration: 0.11),
-                SKAction.moveBy(x: plan.direction * flight, y: 1.2, duration: 0.16),
-                SKAction.moveBy(x: plan.direction * landing, y: -1.8, duration: 0.15),
-                SKAction.wait(forDuration: 0.10),
+                SKAction.wait(forDuration: RabbitNode.hopSupportDuration),
+                movement,
+                SKAction.run { rabbit.position = landingPosition },
+                SKAction.wait(forDuration: RabbitNode.hopSettleDuration),
                 SKAction.run { [weak self] in self?.finishHop() }
             ]), withKey: self.movementKey)
         }
@@ -299,15 +376,20 @@ final class RabbitScene: SKScene {
     private func finishHop() {
         guard rabbit != nil else { return }
         hopsRemaining -= 1
-        rabbit.startRestingAnimation()
         rabbit.speed = 1.0
-        currentState = .resting
         if hopsRemaining > 0 {
-            scheduleTransition(after: random.duration(0.7...1.7)) { [weak self] in
+            // Keep a bout connected. This is a foot-placement beat, not a
+            // full stop; the old 0.7–1.7 second pause made every hop look like
+            // a separate command.
+            rabbit.startIdleAnimation()
+            currentState = .running
+            scheduleTransition(after: random.duration(0.10...0.24)) { [weak self] in
                 self?.startNextHop()
             }
         } else {
-            scheduleTransition(after: random.duration(8...18)) { [weak self] in
+            rabbit.startRestingAnimation()
+            currentState = .resting
+            scheduleTransition(after: random.duration(10...24)) { [weak self] in
                 self?.chooseNextStillState()
             }
         }

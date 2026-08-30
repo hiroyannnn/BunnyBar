@@ -64,6 +64,8 @@ private struct RabbitBehaviorRuntimeCheck {
         _ = NSApplication.shared
         let asset = "BunnyBar/Sources/BunnyBar/Resources/Assets.xcassets/LopRabbit.imageset/lop-rabbit.png"
         if let image = NSImage(contentsOfFile: asset) { image.setName("LopRabbit") }
+        let hopAsset = "BunnyBar/Sources/BunnyBar/Resources/Assets.xcassets/NaturalHop.imageset/natural-hop.png"
+        if let image = NSImage(contentsOfFile: hopAsset) { image.setName("NaturalHop") }
 
         for width in [CGFloat(1080), CGFloat(1920), CGFloat(100)] {
             let view = SKView(frame: CGRect(x: 0, y: 0, width: 88, height: 44))
@@ -121,7 +123,7 @@ private struct RabbitBehaviorRuntimeCheck {
                     && state != "running" && state != "binky" {
                     check(abs(deltaX) < 0.02, "Stationary transition changed X")
                 }
-                if state == "resting" && abs(rabbit.position.x - initialX) > 4 {
+                if state == "resting" && abs(rabbit.position.x - initialX) > 2 {
                     hasRestedElsewhere = true
                 }
 

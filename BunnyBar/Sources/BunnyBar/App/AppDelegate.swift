@@ -148,6 +148,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var visibilityMenuItem: NSMenuItem!
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        guard !isDuplicateInstance else {
+            NSLog("BunnyBar: another instance is already running; terminating duplicate")
+            NSApp.terminate(nil)
+            return
+        }
         NSApp.setActivationPolicy(.accessory)
         setupStatusItem()
         rebuildOverlays()
@@ -156,6 +161,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         screenChangeObserver = NotificationCenter.default.addObserver(
             forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main
         ) { [weak self] _ in self?.rebuildOverlays() }
+    }
+
+    private var isDuplicateInstance: Bool {
+        guard let bundleIdentifier = Bundle.main.bundleIdentifier else { return false }
+        let currentProcess = ProcessInfo.processInfo.processIdentifier
+        return NSRunningApplication.runningApplications(withBundleIdentifier: bundleIdentifier)
+            .contains { $0.processIdentifier != currentProcess && !$0.isTerminated }
     }
 
     private func setupStatusItem() {
