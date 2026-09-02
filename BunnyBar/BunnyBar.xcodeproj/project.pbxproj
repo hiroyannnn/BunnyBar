@@ -15,6 +15,7 @@
 		4502675C2F14E47800C44C47 /* Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 4502674E2F14E47800C44C47 /* Info.plist */; };
 		4502675E2F14E75500C44C47 /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4502675D2F14E75500C44C47 /* main.swift */; };
 		4502675F2F14E75500C44C47 /* SystemMetrics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 450267602F14E75500C44C47 /* SystemMetrics.swift */; };
+		BB1000022F15000000C44C47 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = BB1000012F15000000C44C47 /* PrivacyInfo.xcprivacy */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -27,6 +28,7 @@
 		450267532F14E47800C44C47 /* ClickableHostingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClickableHostingView.swift; sourceTree = "<group>"; };
 		4502675D2F14E75500C44C47 /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
 		450267602F14E75500C44C47 /* SystemMetrics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemMetrics.swift; sourceTree = "<group>"; };
+		BB1000012F15000000C44C47 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -71,6 +73,7 @@
 			children = (
 				4502674D2F14E47800C44C47 /* Assets.xcassets */,
 				4502674E2F14E47800C44C47 /* Info.plist */,
+				BB1000012F15000000C44C47 /* PrivacyInfo.xcprivacy */,
 			);
 			path = Resources;
 			sourceTree = "<group>";
@@ -173,6 +176,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				4502675B2F14E47800C44C47 /* Assets.xcassets in Resources */,
+				BB1000022F15000000C44C47 /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -329,7 +333,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 0.1.0;
+				MARKETING_VERSION = 1.0.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.hiroyannnn.BunnyBar;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -349,6 +353,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 386F82P767;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -357,7 +362,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 0.1.0;
+				MARKETING_VERSION = 1.0.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.hiroyannnn.BunnyBar;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
