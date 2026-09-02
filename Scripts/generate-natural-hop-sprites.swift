@@ -141,12 +141,33 @@ private func dilateAlpha(
                 expandedAlpha = originalAlpha
             }
             image.setColor(
-                NSColor(deviceRed: 0, green: 0, blue: 0, alpha: expandedAlpha),
+                // SpriteKit multiplies a sprite's texture RGB by its tint.
+                // Keep every silhouette asset as a white RGB + alpha mask so
+                // `labelColor` can produce black in light appearance and
+                // white in dark appearance without poses changing color.
+                NSColor(deviceRed: 1, green: 1, blue: 1, alpha: expandedAlpha),
                 atX: startX + x,
                 y: y
             )
         }
     }
+}
+
+private func normalizeAsWhiteTintMask(_ image: NSBitmapImageRep) {
+    guard let graphics = NSGraphicsContext(bitmapImageRep: image) else {
+        fail("Could not create tint-mask graphics context")
+    }
+    NSGraphicsContext.saveGraphicsState()
+    NSGraphicsContext.current = graphics
+    // `sourceIn` replaces every visible RGB value with white while retaining
+    // the silhouette's existing alpha, including antialiased edges and the
+    // transparent lop-ear cutout.
+    graphics.cgContext.setBlendMode(.sourceIn)
+    graphics.cgContext.setFillColor(NSColor.white.cgColor)
+    graphics.cgContext.fill(
+        CGRect(x: 0, y: 0, width: image.pixelsWide, height: image.pixelsHigh)
+    )
+    NSGraphicsContext.restoreGraphicsState()
 }
 
 let repositoryRoot = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
@@ -295,6 +316,7 @@ for outputScale in 1...3 {
             radius: dilationRadiusByFrame[frame] * outputScale
         )
     }
+    normalizeAsWhiteTintMask(outputRep)
 
     guard let png = outputRep.representation(using: .png, properties: [:]) else {
         fail("Could not encode \(outputScale)x sprite sheet")

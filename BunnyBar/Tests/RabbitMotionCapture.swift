@@ -19,7 +19,12 @@ private final class MotionRenderer {
     private let texture: any MTLTexture
     private let pass = MTLRenderPassDescriptor()
 
-    init(scene: SKScene, width: Int, height: Int) {
+    init(
+        scene: SKScene,
+        width: Int,
+        height: Int,
+        clearColor: MTLClearColor = MTLClearColorMake(1, 1, 1, 1)
+    ) {
         guard let device = MTLCreateSystemDefaultDevice(),
               let queue = device.makeCommandQueue() else {
             fatalError("Metal unavailable")
@@ -40,7 +45,7 @@ private final class MotionRenderer {
         pass.colorAttachments[0].texture = texture
         pass.colorAttachments[0].loadAction = .clear
         pass.colorAttachments[0].storeAction = .store
-        pass.colorAttachments[0].clearColor = MTLClearColorMake(1, 1, 1, 1)
+        pass.colorAttachments[0].clearColor = clearColor
         renderer = SKRenderer(device: device)
         renderer.scene = scene
     }
@@ -115,11 +120,63 @@ private func inkArea(of image: CGImage) -> CGFloat {
     return area
 }
 
+private func lightArea(of image: CGImage) -> CGFloat {
+    let rep = NSBitmapImageRep(cgImage: image)
+    var area: CGFloat = 0
+    for y in 0..<rep.pixelsHigh {
+        for x in 0..<rep.pixelsWide {
+            guard let color = rep.colorAt(x: x, y: y)?.usingColorSpace(.deviceRGB) else {
+                continue
+            }
+            area += (color.redComponent + color.greenComponent + color.blueComponent) / 3
+        }
+    }
+    return area
+}
+
+private func requireWhiteTintMask(at url: URL, named name: String) {
+    guard let data = try? Data(contentsOf: url),
+          let rep = NSBitmapImageRep(data: data) else {
+        fatalError("Could not inspect \(name) tint mask")
+    }
+
+    var visiblePixels = 0
+    var minimumTintRatio: CGFloat = 1
+    for y in 0..<rep.pixelsHigh {
+        for x in 0..<rep.pixelsWide {
+            guard let color = rep.colorAt(x: x, y: y)?.usingColorSpace(NSColorSpace.deviceRGB),
+                  color.alphaComponent > 0.08 else { continue }
+            visiblePixels += 1
+            // Bitmap reads can return premultiplied edge RGB. Dividing by
+            // alpha treats an antialiased white edge as white while a black
+            // source mask still produces a ratio of zero.
+            let minimumComponent = min(
+                color.redComponent,
+                color.greenComponent,
+                color.blueComponent
+            )
+            minimumTintRatio = min(
+                minimumTintRatio,
+                min(1, minimumComponent / color.alphaComponent)
+            )
+        }
+    }
+
+    precondition(visiblePixels > 0, "\(name) tint mask is empty")
+    precondition(
+        minimumTintRatio >= 0.95,
+        "\(name) must use white RGB with alpha so light/dark tinting stays consistent "
+            + "(minimum tint ratio: \(minimumTintRatio))"
+    )
+}
+
 @main
 @MainActor
 private struct RabbitMotionCapture {
     static func main() {
         _ = NSApplication.shared
+        let originalAppearance = NSApp.appearance
+        defer { NSApp.appearance = originalAppearance }
         NSApp.appearance = NSAppearance(named: .aqua)
         let repositoryRoot = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
         let assets = repositoryRoot.appendingPathComponent(
@@ -131,6 +188,8 @@ private struct RabbitMotionCapture {
               let hop = NSImage(contentsOf: hopURL) else {
             fatalError("Could not load motion assets")
         }
+        requireWhiteTintMask(at: stillURL, named: "LopRabbit")
+        requireWhiteTintMask(at: hopURL, named: "NaturalHop")
         still.setName("LopRabbit")
         hop.setName("NaturalHop")
 
@@ -169,6 +228,40 @@ private struct RabbitMotionCapture {
             fatalError("Brace frame is empty")
         }
         let areaRatios = frameAreas.map { $0 / braceArea }
+
+        // Repeat the real six-frame cycle against a black surface in dark
+        // appearance. A black source texture would disappear here even if the
+        // light-appearance capture passed, reproducing the original bug.
+        NSApp.appearance = NSAppearance(named: .darkAqua)
+        let darkScene = SKScene(size: CGSize(width: width, height: height))
+        darkScene.backgroundColor = .clear
+        let darkRabbit = RabbitNode()
+        darkRabbit.setScale(0.58)
+        darkRabbit.position = CGPoint(x: CGFloat(width) / 2, y: CGFloat(height) * 0.68)
+        darkScene.addChild(darkRabbit)
+        let darkAqua = NSAppearance(named: .darkAqua)
+        darkAqua?.performAsCurrentDrawingAppearance {
+            darkRabbit.startRunningAnimation(includeResidualBob: false)
+            darkRabbit.refreshAppearance()
+        }
+        let darkRenderer = MotionRenderer(
+            scene: darkScene,
+            width: width,
+            height: height,
+            clearColor: MTLClearColorMake(0, 0, 0, 1)
+        )
+        let darkStart: TimeInterval = 200
+        _ = darkRenderer.capture(at: darkStart)
+        let darkFrames = sampleOffsets.map { darkRenderer.capture(at: darkStart + $0) }
+        let darkFrameAreas = darkFrames.map(lightArea)
+        guard let darkBraceArea = darkFrameAreas.first, darkBraceArea > 0 else {
+            fatalError("Dark-appearance brace frame is empty")
+        }
+        let darkAreaRatios = darkFrameAreas.map { $0 / darkBraceArea }
+        precondition(
+            darkAreaRatios.dropFirst().allSatisfy { $0 >= 0.86 && $0 <= 1.15 },
+            "Dark appearance changed color or apparent size: \(darkAreaRatios)"
+        )
         guard let sheetContext = CGContext(
             data: nil,
             width: width * frames.count,
@@ -205,6 +298,10 @@ private struct RabbitMotionCapture {
             .map { String(format: "%.3f", $0) }
             .joined(separator: ", ")
         print("Visual-area ratios: \(areaRatioSummary)")
+        let darkAreaRatioSummary = darkAreaRatios
+            .map { String(format: "%.3f", $0) }
+            .joined(separator: ", ")
+        print("Dark visual-area ratios: \(darkAreaRatioSummary)")
         print("Captured production motion sheet at \(output.path)")
         precondition(
             areaRatios.dropFirst().allSatisfy { $0 >= 0.86 && $0 <= 1.15 },
