@@ -22,7 +22,7 @@ If BunnyBar's data practices change, this policy and the App Store privacy discl
 
 ## Contact
 
-Questions about this policy can be submitted through [BunnyBar Support](https://github.com/hiroyannnn/BunnyBar/issues).
+Questions about this policy can be submitted through [BunnyBar Support](https://bunnybar.pages.dev/support/).
 
 ---
 
@@ -50,4 +50,4 @@ BunnyBarはネットワーク通信を行いません。
 
 ## お問い合わせ
 
-本ポリシーに関するお問い合わせは[BunnyBar Support](https://github.com/hiroyannnn/BunnyBar/issues)へお願いします。
+本ポリシーに関するお問い合わせは[BunnyBar Support](https://bunnybar.pages.dev/support/)へお願いします。

@@ -85,9 +85,9 @@ rabbit,bunny,lop ear,menu bar,cpu,memory,system monitor,companion
 
 ## URLs
 
-- Support URL: `https://github.com/hiroyannnn/BunnyBar/blob/main/docs/support.md`
-- Marketing URL: `https://github.com/hiroyannnn/BunnyBar`
-- Privacy Policy URL: `https://github.com/hiroyannnn/BunnyBar/blob/main/docs/privacy-policy.md`
+- Support URL: `https://bunnybar.pages.dev/support/`
+- Marketing URL: `https://bunnybar.pages.dev/`
+- Privacy Policy URL: `https://bunnybar.pages.dev/privacy/`
 
 ## App privacy answers
 

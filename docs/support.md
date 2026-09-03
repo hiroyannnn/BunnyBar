@@ -23,7 +23,7 @@ Report a problem or request a feature in [GitHub Issues](https://github.com/hiro
 
 ## Privacy
 
-Read the [BunnyBar Privacy Policy](privacy-policy.md).
+Read the [BunnyBar Privacy Policy](https://bunnybar.pages.dev/privacy/).
 
 ---
 
