@@ -20,16 +20,23 @@ of external load spikes.
 - Native macOS app icon based on the same monochrome lop-ear silhouette
 - Supports macOS 13 Ventura and later
 
-## Install
+## Availability
 
-1. Download `BunnyBar-0.1.0.zip` from the [latest GitHub Release](https://github.com/hiroyannnn/BunnyBar/releases/latest).
-2. Expand the ZIP and move `BunnyBar.app` to `/Applications`.
-3. Open BunnyBar. It runs as a menu-bar app and does not create a Dock icon.
-4. Optionally enable **Launch at Login** from the rabbit menu.
+BunnyBar has a public free listing on the [Mac App Store](https://apps.apple.com/jp/app/bunnybar/id6808046017).
+As of 2026-10-05, Apple's public listing reports version `1.0.0` at `¥0`.
+This confirms the public listing only; Store-mediated installation was not
+verified in this task.
 
-Public release archives are universal (Apple silicon and Intel), signed with a
-Developer ID certificate, notarized by Apple, and include a stapled notarization
-ticket. The Release page also provides a SHA-256 checksum.
+The GitHub Releases page still contains only a draft `v0.1.0` with no
+downloadable assets. Do not use the draft release or the old `v0.1.0` tag as a
+current GitHub download source.
+
+## Local install
+
+For local testing, build a Debug app using the instructions below and open the
+resulting `BunnyBar.app`. It runs as a menu-bar app and does not create a Dock
+icon. Optionally enable **Launch at Login** from the rabbit menu only when
+testing that setting.
 
 ## Build and run
 
