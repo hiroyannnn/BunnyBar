@@ -34,9 +34,21 @@ BunnyBarはmacOS 13 Ventura以降で動作するメニューバーアプリで�
 ## 基本的な使い方
 
 1. BunnyBarを起動すると、接続中の各ディスプレイ上端にうさぎが現れます。
-2. メニューバーのうさぎアイコンをクリックすると、CPU、メモリ、動作状態、速度を確認できます。
-3. **うさぎを隠す／表示する**でオーバーレイを切り替えます。
-4. 必要に応じて**ログイン時に起動**を有効にします。
-5. 完全に終了するには**BunnyBarを終了**を選びます。
+2. メニューバーのうさぎアイコンをクリックすると、英語UIでCPU、メモリ、動作状態、速度を確認できます。
+3. **Hide Bunny** または **Show Bunny** でオーバーレイを切り替えます。
+4. 必要に応じて **Launch at Login** を有効にします。
+5. 完全に終了するには **Quit BunnyBar** を選びます。
+
+メニューの表示名と意味は次のとおりです。
+
+| 実際の英語表示 | 意味 |
+| --- | --- |
+| `CPU …` | CPU使用率と負荷状態 |
+| `Rabbit state …` | うさぎの動作状態 |
+| `Next hop tempo …` | 次のホップのテンポ |
+| `Memory …` | メモリ使用率（取得できない場合は `unavailable`） |
+| `Launch at Login` | ログイン時に起動 |
+| `Hide Bunny` / `Show Bunny` | オーバーレイを隠す／表示する |
+| `Quit BunnyBar` | アプリを終了 |
 
 不具合や要望は[GitHub Issues](https://github.com/hiroyannnn/BunnyBar/issues/new/choose)へお願いします。macOSのバージョンとMacのモデルを添え、パスワードや個人情報は投稿しないでください。
