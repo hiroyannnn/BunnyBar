@@ -639,7 +639,13 @@ class RabbitNode: SKNode {
 
     private func showBinkyPose() {
         clearCurrentShape()
-        currentVisual = createSingleBinkyShape()
+        // Keep the first release's rare jump on the adopted LopRabbit
+        // silhouette. A separate hand-drawn binky contour had a materially
+        // smaller ink footprint and read as a different animal at 0.58x.
+        // The jump arc and twist still communicate the behavior; a matched
+        // flight asset can replace this fallback once it passes the same
+        // appearance/mass checks as every other production pose.
+        currentVisual = createStillTextureNode()
         addChild(currentVisual!)
     }
 
