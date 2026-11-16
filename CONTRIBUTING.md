@@ -31,6 +31,12 @@ The app target explicitly uses `BunnyBar/Sources/BunnyBar`. Do not create a new
 Xcode project or add the historical top-level `Sources/BunnyBar` tree to the
 target.
 
+Run `Scripts/verify.sh` on a logged-in Mac with Metal to execute the behavior,
+binky appearance, viewport geometry, and normal-hop rendering checks. Set
+`BUNNYBAR_DERIVED_DATA` to an isolated build directory if needed. GitHub Actions
+builds Debug and Release without distribution signing and compiles these checks;
+it does not execute the WindowServer/Metal checks.
+
 ## Code Style
 
 - Follow Swift standard naming conventions

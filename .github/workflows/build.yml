@@ -1,0 +1,47 @@
+name: macOS build
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        configuration: [Debug, Release]
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Build app without distribution signing
+        run: |
+          xcodebuild -project BunnyBar/BunnyBar.xcodeproj \
+            -scheme BunnyBar -configuration "${{ matrix.configuration }}" \
+            -derivedDataPath "$RUNNER_TEMP/DerivedData" \
+            CODE_SIGNING_ALLOWED=NO build
+      - name: Compile regression checks
+        if: matrix.configuration == 'Debug'
+        shell: bash
+        run: |
+          set -euo pipefail
+          for check in RabbitBehaviorRuntimeCheck RabbitBinkyRegressionCheck RabbitSceneGeometryCheck RabbitMotionCapture; do
+            sources=(BunnyBar/Sources/BunnyBar/Scenes/RabbitNode.swift)
+            case "$check" in
+              RabbitBehaviorRuntimeCheck|RabbitSceneGeometryCheck)
+                sources+=(BunnyBar/Sources/BunnyBar/App/SystemMetrics.swift BunnyBar/Sources/BunnyBar/Scenes/RabbitScene.swift)
+                ;;
+            esac
+            xcrun swiftc -warnings-as-errors \
+              -module-cache-path "$RUNNER_TEMP/ModuleCache" \
+              -framework AppKit -framework Metal -framework SpriteKit \
+              "${sources[@]}" "BunnyBar/Tests/$check.swift" \
+              -o "$RUNNER_TEMP/$check"
+          done
+          echo 'Rendering and geometry execution require a logged-in Mac with Metal; run Scripts/verify.sh locally.'

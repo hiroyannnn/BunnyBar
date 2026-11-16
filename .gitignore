@@ -10,6 +10,9 @@ build/
 *.app
 *.ipa
 
+# Local App Store source captures may contain desktop contents.
+/docs/app-store/screenshots/captures/
+
 # Swift Package Manager
 /.build
 /Packages

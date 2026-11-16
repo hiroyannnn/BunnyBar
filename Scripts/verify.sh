@@ -5,6 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 MODULE_CACHE="/private/tmp/BunnyBarVerifyModuleCache"
 BEHAVIOR_CHECK="/private/tmp/BunnyBarBehaviorRuntimeCheck"
+BINKY_CHECK="/private/tmp/BunnyBarBinkyRegressionCheck"
 GEOMETRY_CHECK="/private/tmp/BunnyBarRabbitSceneGeometryCheck"
 MOTION_CHECK="/private/tmp/BunnyBarMotionCapture"
 MOTION_SHEET="/private/tmp/BunnyBarNaturalHopMotionSheet.png"
@@ -15,7 +16,7 @@ xcodebuild \
   -project BunnyBar/BunnyBar.xcodeproj \
   -scheme BunnyBar \
   -configuration Debug \
-  -derivedDataPath build/DerivedData \
+  -derivedDataPath "${BUNNYBAR_DERIVED_DATA:-build/DerivedData}" \
   build
 
 xcrun swiftc -warnings-as-errors \
@@ -27,6 +28,14 @@ xcrun swiftc -warnings-as-errors \
   BunnyBar/Tests/RabbitBehaviorRuntimeCheck.swift \
   -o "${BEHAVIOR_CHECK}"
 "${BEHAVIOR_CHECK}"
+
+xcrun swiftc -warnings-as-errors \
+  -module-cache-path "${MODULE_CACHE}" \
+  -framework AppKit -framework Metal -framework SpriteKit \
+  BunnyBar/Sources/BunnyBar/Scenes/RabbitNode.swift \
+  BunnyBar/Tests/RabbitBinkyRegressionCheck.swift \
+  -o "${BINKY_CHECK}"
+"${BINKY_CHECK}"
 
 xcrun swiftc -warnings-as-errors \
   -module-cache-path "${MODULE_CACHE}" \
